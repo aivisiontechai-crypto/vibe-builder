@@ -56,6 +56,7 @@ cp -r skills/builder ~/.claude/skills/
 cp -r skills/vibe-docs ~/.claude/skills/
 cp -r skills/vibe-build ~/.claude/skills/
 cp -r skills/vibe-evolve ~/.claude/skills/
+cp -r commands ~/.claude/commands/
 ```
 
 **Manual install (opencode):**
@@ -65,7 +66,17 @@ cp -r skills/builder ~/.config/opencode/skills/
 cp -r skills/vibe-docs ~/.config/opencode/skills/
 cp -r skills/vibe-build ~/.config/opencode/skills/
 cp -r skills/vibe-evolve ~/.config/opencode/skills/
+cp -r commands ~/.config/opencode/commands/
 ```
+
+## Slash command
+
+A `/builder` slash command ships under `commands/builder.md` and delegates
+straight to the `builder` skill, so any host that supports the Agent Skills
+format plus slash-command files (Claude Code, opencode, Cursor, Windsurf,
+Codex) gets `/builder <idea>` for free after install. With `npx skills add`
+the command is picked up automatically; with a manual install copy the
+`commands/` directory to the host's commands root (see above).
 
 ## Skill Structure
 
