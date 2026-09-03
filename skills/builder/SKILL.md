@@ -38,6 +38,20 @@ path (see Project/boundary rules), not a rebuild.
 - **Docker daemon is actually up**, not just on PATH: `docker info`
   must succeed. `docker` present but the daemon stopped fails deep into
   Phase 2 (Postgres/Strix sandbox) otherwise — catch it here instead.
+- **No port collision with sibling stacks**: this environment routinely
+  runs multiple `docker-compose` stacks side by side (other projects'
+  Postgres/Redis/app containers, an existing local AI gateway, etc.) —
+  before scaffolding this project's own `docker-compose.yml`, check
+  `docker ps --format '{{.Ports}}'` (or `lsof -iTCP -sTCP:LISTEN -P` as a
+  fallback) for every port this project's compose file is about to bind
+  (Postgres, the app's dev/prod port, any cache/queue). On a collision,
+  do NOT silently reuse the busy port — pick the next free port in the
+  same family (e.g. `5432→5433`), record the remap in `docker-
+  compose.yml` AND `.env.example`/`README.md` so the deviation from the
+  framework default is visible, not a mystery when someone else's stack
+  breaks or this one refuses to start. A build that only gets discovered
+  as port-conflicted deep into Phase 2 (container fails to bind) wastes
+  a multi-hour run on something checkable in seconds here.
 - **opencode is authenticated non-interactively and a model responds**:
   `opencode auth list` shows a provider that is API-key-based (never one
   requiring an interactive OAuth/browser flow — hands-free cannot pause
