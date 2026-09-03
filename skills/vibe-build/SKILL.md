@@ -741,6 +741,37 @@ and every admin-only route, this is a required e2e test, not optional:
   database query itself** (`where: { orgId }`), never fetched broadly and
   filtered client-side or in application code after the fact.
 
+## 6a3b. API list-endpoint conventions (every route that returns a collection)
+
+An endpoint returning more than a handful of rows without pagination is
+a production incident waiting to happen (an unbounded query, a slow
+client render, an accidental full-table dump) — apply the same bar to
+every list/search endpoint, not just the ones that "feel like" they'll
+grow large:
+
+- **Pagination is real and server-enforced**: cursor-based (preferred
+  for a frequently-mutated list) or offset/limit with a hard max page
+  size the server clamps to — never an unbounded "return everything"
+  default that only breaks once real data volume shows up.
+- **Filtering/sorting/search params are validated server-side** (an
+  allowlist of sortable/filterable fields, not raw client-supplied
+  column names passed into the query — that's SQL-injection-adjacent
+  and lets a client sort/filter by a field it shouldn't even see).
+- **API versioning**: a URL-prefixed (`/api/v1/...`) or header-based
+  version scheme decided once in `docs/API_SPEC.md` before the first
+  route ships — retrofitting versioning after external consumers exist
+  is the expensive alternative; a single-tenant internal-only API can
+  skip this deliberately, but record that decision, don't default into
+  it by omission.
+- **Real-time/WebSocket features (if the product has them — live
+  updates, presence, chat)**: reconnection with backoff on drop (a
+  client that loses connection silently and never recovers is worse
+  than no real-time feature at all), and a server-side authorization
+  check on the socket/channel subscription itself (a user must not be
+  able to subscribe to another tenant's/user's channel just by knowing
+  its ID) — same authorization bar as section 6a3, applied to the
+  transport that bypasses normal HTTP request auth middleware.
+
 ## 6a4. File uploads, server-side fetches, and error handling
 
 - **File uploads**: allowlist MIME type AND validate actual file content
@@ -957,6 +988,11 @@ report a silent pass.
   (non-admin account against every admin route), and — if multi-tenant —
   the cross-tenant isolation test across dashboards, search, exports, and
   any AI-generated summaries.
+- [ ] List endpoints: every collection-returning route enforces a
+  server-side max page size (test by requesting an unbounded/huge page,
+  confirm it's clamped, not that the client just stopped rendering); any
+  sort/filter param is checked against an allowlist, not passed raw into
+  the query.
 - [ ] Input validation: every mutating route Zod-validates its input
   server-side (not just client-side); parameterized queries/ORM only, no
   string-concatenated SQL anywhere in the codebase (grep for it).
