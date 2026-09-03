@@ -240,6 +240,32 @@ paths. JSON-LD structured data (`Organization`/`Product`/`Article` as
   with no CDN in front, note that gap explicitly in `docs/DEPLOYMENT.md`
   (static assets served straight from the app, no edge cache) rather
   than silently assuming one exists.
+- **Application cache layer (Redis, if the product's scale/PRD actually
+  calls for one beyond Postgres alone)**: use it for the things that
+  genuinely need a shared, fast, ephemeral store — the session/rate-
+  limit store already covered in section 2b's fault-tolerance bar, plus
+  an explicit query/API-response cache with a real TTL per key
+  (never an unbounded/forever cache) and an explicit invalidation path
+  on the write that changes the cached data (never rely on TTL alone
+  for data that must be immediately consistent, e.g. a just-cancelled
+  subscription). **Cache fallback**: a Redis outage degrades to hitting
+  Postgres directly (slower, not broken) — never let a cache-layer
+  failure become an application-wide 500; this is the same circuit-
+  breaker/degraded-response pattern already required in section 2b,
+  applied specifically to the cache dependency. Don't introduce Redis
+  at all for a product with no PRD-stated scale need — Postgres alone
+  (with the indexes/query-optimization already covered in section 2b)
+  is the simpler, equally production-ready default.
+- **Feature flags** (only if `docs/PRD.md` calls for staged rollout,
+  A/B testing, or environment-gated features — not a default for every
+  product): a single source of truth for flag state (a DB table or an
+  env-driven config, not scattered `if (Math.random() ...)` or hardcoded
+  booleans sprinkled through the codebase), checked server-side for any
+  flag that gates a security-relevant or paid feature (a client-only
+  flag check is bypassable by definition — same principle as
+  authorization in section 6a3). A flag with no owner/expiry becomes
+  permanent tech debt — record each flag's purpose and planned removal
+  in `docs/DECISIONS.md`, not just in code.
 - **Prerendering/bfcache**: where the framework supports it (Next.js
   `next/navigation` link prefetch is the default equivalent; add the
   Speculation Rules API — `<script type="speculationrules">` with a
