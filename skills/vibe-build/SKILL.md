@@ -219,6 +219,27 @@ paths. JSON-LD structured data (`Organization`/`Product`/`Article` as
   (unoptimized hero image, layout-shifting late-loading font/ad slot,
   a heavy client bundle blocking interactivity) before it ships, not
   after a user reports a sluggish page.
+- **Caching/CDN** (no dedicated high-install skill exists for this —
+  `~/.agents/skills/LEDGER.md`'s 2026-09-03 checklist audit searched
+  skills.sh for "caching"/"cdn" and found only low-install, platform-
+  specific forks; the closest real coverage is `web-quality-skills@
+  performance`'s Cache-Control section, so plan the rest from first
+  principles): every static asset Next.js fingerprints (`_next/static/*`)
+  gets a long `Cache-Control: public, max-age=31536000, immutable`
+  (the framework default on most hosts — verify it, don't assume);
+  dynamic/API responses that are safe to share across users use `Cache-
+  Control: s-maxage=<n>, stale-while-revalidate=<n>` (or the framework's
+  own cache primitive — Next's `fetch` cache/`revalidate` options, or
+  route-segment `revalidate`) instead of `no-store` by default — an
+  uncached hot read-path (a public listing page, a leaderboard) is the
+  usual production surprise, not a deliberate choice. Never cache a
+  response containing per-user/private data with a shared/public
+  directive. If the deploy target is a CDN-fronted host (Vercel or
+  similar), rely on its edge cache honoring these headers rather than
+  hand-rolling a second cache layer; if it's a plain container deploy
+  with no CDN in front, note that gap explicitly in `docs/DEPLOYMENT.md`
+  (static assets served straight from the app, no edge cache) rather
+  than silently assuming one exists.
 - **Prerendering/bfcache**: where the framework supports it (Next.js
   `next/navigation` link prefetch is the default equivalent; add the
   Speculation Rules API — `<script type="speculationrules">` with a
