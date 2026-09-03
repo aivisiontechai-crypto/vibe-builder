@@ -547,13 +547,22 @@ everything is ordered by story priority across the whole scope.
    - Strix pentest CLI installed once (`pipx install strix-agent` or
      `curl -sSL https://strix.ai/install | bash`); the first scan pulls the
      Docker sandbox image, so the security gate can't fail on missing tooling.
-   - Strix uses the SAME LLM/gateway as the detected build-agent backend
-     (OmniRoute, OpenAI-compatible at `http://localhost:20128/v1`) — no
-     separate account. Add its env vars to
+   - **Strix's LLM wiring is derived, not hardcoded**: reuse whatever
+     this machine actually has configured for the detected build-agent
+     backend rather than assuming a local gateway exists. If a local
+     OpenAI-compatible gateway is running (e.g. this stack's OmniRoute at
+     `http://localhost:20128/v1`), point Strix at it — no separate
+     account needed: `STRIX_LLM=openai/auto`,
+     `LLM_API_BASE=http://localhost:20128/v1`, `LLM_API_KEY` (any
+     non-empty stub OmniRoute accepts). Otherwise reuse the SAME provider
+     credentials the detected backend is already authenticated with
+     (`ANTHROPIC_API_KEY` → `STRIX_LLM=anthropic/<model>`;
+     `OPENAI_API_KEY`/`OPENAI_BASE_URL` → `STRIX_LLM=openai/<model>`,
+     `LLM_API_BASE` set to that same base URL) — never assume a gateway
+     exists on a machine that doesn't have one. Add whichever set of vars
+     applies to
      the gitignored `.env` (Strix reads them at CLI time; the app env module
-     stays untouched): `STRIX_LLM=openai/auto`, `LLM_API_BASE=http://localhost:20128/v1`,
-     `LLM_API_KEY` (any non-empty stub OmniRoute accepts), and optionally
-     `STRIX_REASONING_EFFORT=high`.
+     stays untouched), and optionally `STRIX_REASONING_EFFORT=high`.
 3. **Run the loop in the BACKGROUND.** A full-product build runs for hours
    — a foreground call will outlive any single command cap, so launch it
    detached and poll:
@@ -1003,8 +1012,11 @@ assume a fixed code meaning across versions, confirm via `strix view
 <run-name>` (or the printed findings list) before deciding which. On
 validated findings, load **fix-security-vulnerabilities-with-strix**, patch
 the root cause, re-run against the same target, and do not report shipped
-until the re-run is clean. Strix runs on the SAME OmniRoute models as
-opencode (`STRIX_LLM=openai/auto`, `LLM_API_BASE=http://localhost:20128/v1`).
+until the re-run is clean. Strix's LLM wiring follows the same
+detected-backend/gateway rule as Phase-0 provisioning above (reuse a local
+gateway like OmniRoute when one is actually running; otherwise reuse the
+backend's own provider credentials) — never hardcode a specific gateway
+URL that may not exist on this machine.
 
 ## 6c. Final checklist validation pass (run before reporting shipped)
 

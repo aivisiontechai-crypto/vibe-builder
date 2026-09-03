@@ -339,8 +339,16 @@ Required skills: `prompt-architect`, `find-skills`,
      app: a clean run, or every validated finding fixed and the re-run
      clean, before reporting shipped. Treat any non-zero exit as needing
      triage via `strix view <run>` — don't assume a fixed exit-code
-     meaning. Strix uses the SAME OmniRoute models as this agent
-     (`STRIX_LLM=openai/auto`, `LLM_API_BASE=http://localhost:20128/v1`).
+     meaning. **Strix's LLM wiring is derived, not hardcoded**: point it
+     at whatever this machine actually has configured for the detected
+     build-agent backend — if a local OpenAI-compatible gateway is
+     running (e.g. this stack's OmniRoute at `http://localhost:20128/v1`),
+     reuse it (`STRIX_LLM=openai/auto`, `LLM_API_BASE=<that gateway's
+     URL>`); otherwise reuse the SAME provider credentials the backend
+     itself is authenticated with (`ANTHROPIC_API_KEY`→
+     `STRIX_LLM=anthropic/...`, `OPENAI_API_KEY`→`STRIX_LLM=openai/...`)
+     rather than assuming a gateway exists on a machine that doesn't have
+     one.
      **Triage-loop bound:** cap fix→re-scan cycles at 3, matching ralph's
      own stall detector. If a finding still isn't clean after 3 rounds,
      stop looping — record it (severity, what was tried, why it's still
