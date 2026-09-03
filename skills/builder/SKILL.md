@@ -88,7 +88,7 @@ Required skills: `prompt-architect`, `find-skills`,
 `emil-design-eng`, `building-components`, `shadcn`, `magic-ui`, `agent-elements`,
 `codebase-design`, `domain-modeling`, `improve-codebase-architecture`,
 `gdpr-data-handling`, `security-review`, `owasp-top-10-testing`, `sast-configuration`,
-`nodejs-backend-patterns`, `k6`,
+`nodejs-backend-patterns`, `k6`, `seo`, `email-best-practices`, `react-email`,
 `prisma-database-setup`, `prisma-postgres`, `prisma-client-api`,
 `api-and-interface-design`, `test-driven-development`,
 `prompt-engineering-patterns`, `agent-browser`,
@@ -121,6 +121,8 @@ Required skills: `prompt-architect`, `find-skills`,
    `getsentry/skills@security-review`, `usestrix/strix@owasp-top-10-testing`,
    `wshobson/agents@sast-configuration`, `wshobson/agents@nodejs-backend-patterns`,
    `grafana/skills@k6`,
+   `addyosmani/web-quality-skills@seo`,
+   `resend/email-best-practices@email-best-practices`, `resend/react-email@react-email`,
    `usestrix/strix` for the
    three pentest skills). A skill with no recorded source yet must first
    pass `find-skills`' verification bar (reputable source OR ≥1k installs
