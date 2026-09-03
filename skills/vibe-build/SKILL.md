@@ -187,6 +187,21 @@ paths. JSON-LD structured data (`Organization`/`Product`/`Article` as
   verify with a hard reload in each mode) rather than a bespoke context;
   otherwise a single well-executed theme is fine — never ship a half-wired
   theme toggle that leaves some components unstyled in dark mode.
+- **Analytics** (no vetted third-party skill exists for this yet —
+  `~/.agents/skills/LEDGER.md`'s 2026-09-03 checklist audit searched
+  skills.sh for "posthog"/"analytics"/"segment" and found nothing that
+  cleared the reputability bar, so plan this from first principles):
+  track a small, deliberate set of product events server-side (signup,
+  activation, core-action-completed, subscription-started/cancelled),
+  not every click — pick the events from `docs/PRD.md`'s success metrics,
+  never invent vanity events. Prefer a privacy-respecting provider with
+  an official SDK (PostHog, Plausible, or Vercel Analytics if already on
+  Vercel) wired through actual env-configured API keys, never a stub/
+  console.log placeholder. Server-side events include the user/account
+  ID (never PII beyond what's already stored) so funnels are queryable
+  without a second identity system. If the product has no analytics
+  requirement in `docs/PRD.md`, skip this rather than bolting on
+  tracking nobody asked for.
 - **Feedback/loading states**: toast notifications via `sonner` (or
   shadcn/ui's wrapper around it) for every mutation's success/error
   feedback — never a silent failure or a `console.log`-only error. Loading
@@ -724,6 +739,15 @@ and every admin-only route, this is a required e2e test, not optional:
   internal file paths to the client — log the detail server-side only.
 
 ## 6a5. Payments and webhooks (only relevant if the product has them)
+
+No vetted third-party skill exists for Stripe/payments yet (the
+2026-09-03 checklist audit in `~/.agents/skills/LEDGER.md` searched
+skills.sh for "stripe"/"payments"/"webhook" and found nothing that
+cleared the reputability bar — no official Stripe skill was found).
+Ground every implementation decision in Stripe's own current docs via
+`source-driven-development` rather than training-data memory (Stripe's
+API/webhook signing conventions change often), and apply the same
+fault-tolerance/idempotency bar already required in section 2b:
 
 - **Every webhook (Stripe, or any provider) verifies the provider's
   signature** against the raw/unmodified request body using the
