@@ -1,6 +1,6 @@
 ---
 name: vibe-build
-description: Use when the user wants a fullstack application built from an idea or from existing docs — "build the app", "implement it", "code it now", "make it production ready", "create the fullstack application". Reads docs/ + prd.json (ralph format) if present, otherwise generates them first via the vibe-docs skill, then drives the ralph loop (snarktank/ralph, adapted to opencode): a fresh headless opencode instance implements ONE small story per iteration until every story passes, monitored via prd.json passes and progress.txt. Builds the COMPLETE full product — NOT an MVP cut: real database, real auth, real data flows, tests, security hardening, Docker/deploy config. Hands-free: choose the best defaults, ask no clarifying questions, never ship mock, dummy, fake, or hardcoded data. Works with everything installed: impeccable, ui-ux-pro-max, design-taste-frontend, design-md, vercel-labs/agent-skills, prisma skills, agent-browser, and the addyosmani lifecycle skills.
+description: Use when the user wants a fullstack application built from an idea or from existing docs — "build the app", "implement it", "code it now", "make it production ready", "create the fullstack application". Reads docs/ + prd.json (ralph format) if present, otherwise generates them first via the vibe-docs skill, then drives the ralph loop (snarktank/ralph, backend-agnostic — opencode, claude, or codex, whichever headless CLI is detected): a fresh headless instance implements ONE small story per iteration until every story passes, monitored via prd.json passes and progress.txt. Builds the COMPLETE full product — NOT an MVP cut: real database, real auth, real data flows, tests, security hardening, Docker/deploy config. Hands-free: choose the best defaults, ask no clarifying questions, never ship mock, dummy, fake, or hardcoded data. Works with everything installed: impeccable, ui-ux-pro-max, design-taste-frontend, design-md, vercel-labs/agent-skills, prisma skills, agent-browser, and the addyosmani lifecycle skills.
 ---
 
 # vibe-build — docs → production-ready fullstack application
@@ -527,10 +527,14 @@ everything is ordered by story priority across the whole scope.
    - git repo exists (init if not); repo-local identity set if unset
      (`git config user.name "ralph-agent"`, `git config user.email
      "ralph@local"`); branch created from `prd.json.branchName`.
-   - `opencode` is on PATH, authenticated (`opencode auth list` shows a
-     provider), and a trivial `opencode run --auto "reply ok"` succeeds —
-     catch broken/missing auth BEFORE the first of many hours-long
-     iterations, not during it.
+   - The detected backend (`scripts/ralph/.backend`) is on PATH,
+     authenticated, and a trivial invocation succeeds — catch
+     broken/missing auth BEFORE the first of many hours-long iterations,
+     not during it. For `opencode`: `opencode auth list` shows a provider,
+     then `opencode run --auto "reply ok"`. For `claude`: `ANTHROPIC_API_KEY`
+     (or an already-logged-in session) is set, then `claude -p "reply ok"
+     --dangerously-skip-permissions`. For `codex`: `OPENAI_API_KEY` is set,
+     then `codex exec "reply ok"`.
    - `scripts/ralph/progress.txt` exists.
 - `.gitignore` handles the loop artifacts: IGNORE `build.log`,
       `ralph.log`, `heartbeat.log`, `heartbeat.state`, `.ralph.pid`,
@@ -625,8 +629,10 @@ everything is ordered by story priority across the whole scope.
      relaunch as-is; do not touch `prd.json`.
    - **Iterations complete, `ralph.log` is clean, but nothing commits**: a
      permission problem — the headless runs are most likely being denied
-     by `opencode.json` permission rules; auto-allow the project so
-     `--auto` can act.
+     by the backend's own auto-approve config (`opencode.json` permission
+     rules for `opencode`, settings/allowlist for `claude`, sandbox policy
+     for `codex`); auto-allow the project so the headless flag (`--auto`/
+     `--dangerously-skip-permissions`/`--full-auto`) can actually act.
    - **Iterations run long and end without a clean pass/fail signal**: the
      story is too big or a docs fact is missing — split the story or fix
      `prd.json`/docs.

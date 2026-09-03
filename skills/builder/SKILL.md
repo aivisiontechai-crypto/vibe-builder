@@ -439,7 +439,8 @@ Required skills: `prompt-architect`, `find-skills`,
      items that needed a fix, or "none">; cost=<detected backend's usage-stats total, or "n/a">`.
      Pull the values from data already gathered in this same phase (stall
      diagnosis in Phase 2, the Phase 3 status table, Strix triage rounds,
-     `opencode stats`) — never re-derive or guess them. This is the ONLY
+     the detected backend's usage-stats command, e.g. `opencode stats`) —
+     never re-derive or guess them. This is the ONLY
      place real run outcomes become durable, cross-project signal; without
      it vibe-evolve's gap-hunting has nothing but static phase names to go
      on.
@@ -452,8 +453,9 @@ Required skills: `prompt-architect`, `find-skills`,
    (severity + what was tried — never omitted just because stories all
    passed), one command to run it, only the credentials the user must
    supply (env-gated, read from the credentials file — never restated
-   inline), and the run's total cost/tokens (`opencode stats --days 1`) so
-   the spend of an unattended run is never a surprise.
+inline), and the run's total cost/tokens (the detected backend's
+  usage-stats command, e.g. `opencode stats --days 1`, when it has one —
+  otherwise "n/a") so the spend of an unattended run is never a surprise.
 
 Auto-chain rule: the phases run end-to-end with NO confirmation stops.
 When vibe-docs finishes, proceed straight into vibe-build — never ask
@@ -527,11 +529,13 @@ and the final report.
   concurrency-lock check in Prerequisites and any later builder invocation
   can resolve "what is this run building" without re-deriving it or
   parsing logs.
-- **Record this supervising session's own id** in the same step, so the
-  user can attach to the exact live session instead of only reading logs
-  (`opencode session list` — the most recently created session with the
+- **Record this supervising session's own id, when the detected backend
+  supports session/transcript IDs** (currently `opencode`; `claude`/
+  `codex` sessions are addressed via their own resume mechanisms, if any —
+  do not invent an ID scheme for a backend that has none). For `opencode`:
+  `opencode session list` — the most recently created session with the
   matching directory/title is this one; if the launch command set
-  `--title`, match on that). Append one line —
+  `--title`, match on that. Append one line —
   `<timestamp>  builder-supervisor  <sessionID>  <absolute path>` — to
   `<absolute path>/.opencode-sessions.log` (create it if missing; this
   file is gitignored, see the `.gitignore` handling in vibe-build section
