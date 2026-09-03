@@ -479,12 +479,15 @@ the only cross-iteration behavioral memory besides git history and
 ## 4. Execution — the ralph loop (monitors and keeps the build in check)
 
 You do NOT build slice-by-slice by hand. **Ralph** (snarktank/ralph,
-adapted to opencode here) drives it: each iteration spawns a FRESH, headless
-`opencode run` that implements ONE small story from `prd.json`. Memory
-between iterations = git history, `progress.txt`, `AGENTS.md`. Clean
-context per story, green commits, no context drift. The full product is
-built this way — nothing is MVP-cut, everything is ordered by story
-priority across the whole scope.
+generalized here to any headless build-agent CLI, not opencode-only)
+drives it: each iteration spawns a FRESH, headless run of the DETECTED
+backend (see "Headless build-agent backend" in builder's Prerequisites —
+`opencode run --auto`, `claude -p --dangerously-skip-permissions`, or
+`codex exec`, whichever was found on PATH first) that implements ONE
+small story from `prd.json`. Memory between iterations = git history,
+`progress.txt`, `AGENTS.md`. Clean context per story, green commits, no
+context drift. The full product is built this way — nothing is MVP-cut,
+everything is ordered by story priority across the whole scope.
 
 1. **Install the driver into the project** (once):
    ```bash
@@ -492,10 +495,19 @@ priority across the whole scope.
    cp -r "$HOME/.agents/ralph/scripts/ralph/." scripts/ralph/
    chmod +x scripts/ralph/ralph-opencode.sh scripts/ralph/ralph-iteration.sh scripts/ralph/ralph-heartbeat.sh
    ```
-   `ralph-opencode.sh` = the loop; `OPENCODE.md` = per-iteration agent
-   instructions (one story, quality gates, browser verification, commit,
-   `passes: true`, `progress.txt`, AGENTS.md patterns, COMPLETE marker).
-   Read both before running; they are your ground truth.
+   The shipped driver is named `ralph-opencode.sh` for historical reasons
+   but is NOT opencode-exclusive: `ralph-iteration.sh` reads
+   `scripts/ralph/.backend` (written during Prerequisites detection) and
+   dispatches to whichever CLI invocation matches — if the copy on this
+   machine only knows the opencode invocation, wrap it: read `.backend`
+   at the top of `ralph-iteration.sh` and branch to the matching command
+   (`opencode run --auto`, `claude -p --dangerously-skip-permissions`, or
+   `codex exec`) before the story prompt is sent, rather than hardcoding
+   one CLI. `AGENTS.md` (the per-iteration agent instructions — one
+   story, quality gates, browser verification, commit, `passes: true`,
+   `progress.txt`, AGENTS.md patterns, COMPLETE marker) is CLI-agnostic
+   already since every backend above reads plain-text instructions the
+   same way. Read both before running; they are your ground truth.
 2. **Phase 0 — hands-free provisioning (you, in this session).** Remove
    every environment blocker BEFORE the loop starts so nothing stalls
    behind infra:
@@ -535,8 +547,9 @@ priority across the whole scope.
    - Strix pentest CLI installed once (`pipx install strix-agent` or
      `curl -sSL https://strix.ai/install | bash`); the first scan pulls the
      Docker sandbox image, so the security gate can't fail on missing tooling.
-   - Strix uses the SAME LLM as opencode (OmniRoute, OpenAI-compatible at
-     `http://localhost:20128/v1`) — no separate account. Add its env vars to
+   - Strix uses the SAME LLM/gateway as the detected build-agent backend
+     (OmniRoute, OpenAI-compatible at `http://localhost:20128/v1`) — no
+     separate account. Add its env vars to
      the gitignored `.env` (Strix reads them at CLI time; the app env module
      stays untouched): `STRIX_LLM=openai/auto`, `LLM_API_BASE=http://localhost:20128/v1`,
      `LLM_API_KEY` (any non-empty stub OmniRoute accepts), and optionally
@@ -559,20 +572,22 @@ priority across the whole scope.
    at `progress.txt`. Prior runs are archived to `scripts/ralph/archive/`
    automatically when `branchName` changes. A 45-min per-iteration hang cap
    is active when `gtimeout` (brew install coreutils) is on PATH.
-   - **Every iteration's session id is captured, not just its log.** Each
-     spawned `opencode run` uses `--print-logs --title "ralph-iter-<n>"`;
+   - **Every iteration's session/transcript id is captured, not just its
+     log**, when the backend supports it. For `opencode`, each spawned
+     `opencode run` uses `--print-logs --title "ralph-iter-<n>"`;
      `ralph-iteration.sh` greps the `id=ses_...` it emits and appends
      `<timestamp>  ralph-iter-<n>  <sessionID>` to
      `<project>/.opencode-sessions.log` (the same file the top-level
      builder supervisor wrote its own session id to — see builder's
-     Project/boundary rules). `tail -f .opencode-sessions.log` next to
-     `tail -f scripts/ralph/ralph.log` lets the user pick any in-flight or
-     past iteration and run `opencode <project dir> --session <sessionID>`
-     (or open the TUI's session picker / `opencode session list`) to
-     literally watch that iteration work in real time instead of only
-     reading its log output after the fact. (`opencode attach <url>`
-     attaches to a running *server* by URL — a different thing — not the
-     right command for opening a session by id.)
+     Project/boundary rules). For `claude`/`codex`, log the equivalent
+     transcript/session identifier the CLI exposes (e.g. `claude --resume
+     <id>`, `codex exec --json` run id) to the same log file so the
+     pattern travels across backends. `tail -f .opencode-sessions.log`
+     (or the backend's equivalent log) next to `tail -f
+     scripts/ralph/ralph.log` lets the user pick any in-flight or past
+     iteration and re-attach with that backend's own resume/session
+     command to literally watch that iteration work in real time instead
+     of only reading its log output after the fact.
 4. **Supervise — poll, don't babysit.** The loop is autonomous; you own the
    outcome. Every few minutes check in with:
    ```bash

@@ -29,12 +29,30 @@ path (see Project/boundary rules), not a rebuild.
 
 ## Prerequisites (verify before Phase 0 — fail fast, not hours in)
 
-- **Binaries on PATH**: `opencode`, `jq`, `git`, `npx`, `docker` (local
-  Postgres + the Strix sandbox both need it). Missing any is a hard stop
-  with the exact install command for the user's OS (detect via `uname`;
-  macOS → `brew`, Debian/Ubuntu → `apt`, other Linux → name the distro's
-  own manager, never assume `brew` on Linux) — never start a multi-hour
-  run destined to fail on a missing tool.
+- **Binaries on PATH**: `jq`, `git`, `npx`, `docker` (local Postgres +
+  the Strix sandbox both need it), plus AT LEAST ONE headless-capable
+  build-agent CLI (see "Headless build-agent backend" below — `opencode`
+  is not a hard requirement, it's just the first-preference backend when
+  present). Missing any of the fixed four is a hard stop with the exact
+  install command for the user's OS (detect via `uname`; macOS → `brew`,
+  Debian/Ubuntu → `apt`, other Linux → name the distro's own manager,
+  never assume `brew` on Linux) — never start a multi-hour run destined
+  to fail on a missing tool.
+- **Headless build-agent backend (auto-detected, agent-agnostic)**: the
+  ralph loop (Phase 2) needs ONE CLI capable of a non-interactive,
+  tool-using run. Detect in this preference order and use the FIRST one
+  found — never prompt, never assume opencode is the only option:
+  1. `opencode` — `opencode run --auto "<prompt>"`
+  2. `claude` (Claude Code) — `claude -p "<prompt>" --dangerously-skip-permissions`
+  3. `codex` (OpenAI Codex CLI) — `codex exec "<prompt>"`
+  4. any other CLI the user names explicitly with a working non-interactive
+     flag (record its invocation the same way)
+  Record the detected backend once in `scripts/ralph/.backend` (plain
+  text, e.g. `opencode`) so every iteration — and any later resume/
+  relaunch — uses the SAME backend instead of redetecting (and possibly
+  switching) mid-build. If none of the above are found, stop and report
+  which CLIs to install; never fall back to a purely-interactive tool for
+  an unattended multi-hour loop.
 - **Docker daemon is actually up**, not just on PATH: `docker info`
   must succeed. `docker` present but the daemon stopped fails deep into
   Phase 2 (Postgres/Strix sandbox) otherwise — catch it here instead.
@@ -52,13 +70,19 @@ path (see Project/boundary rules), not a rebuild.
   breaks or this one refuses to start. A build that only gets discovered
   as port-conflicted deep into Phase 2 (container fails to bind) wastes
   a multi-hour run on something checkable in seconds here.
-- **opencode is authenticated non-interactively and a model responds**:
-  `opencode auth list` shows a provider that is API-key-based (never one
-  requiring an interactive OAuth/browser flow — hands-free cannot pause
-  on a login page), and a trivial `opencode run --auto "reply ok"`
-  succeeds within a short timeout (e.g. 60s — a hang here means the
-  gateway is down, not that the model is slow). If this fails, stop and
-  report the auth/gateway step needed — every ralph iteration depends on it.
+- **The detected backend is authenticated non-interactively and a model
+  responds**: for `opencode`, `opencode auth list` shows a provider that
+  is API-key-based (never one requiring an interactive OAuth/browser flow
+  — hands-free cannot pause on a login page); for `claude`/`codex`, the
+  equivalent is a non-interactive API-key env var already set (e.g.
+  `ANTHROPIC_API_KEY`/`OPENAI_API_KEY` or this stack's OmniRoute-routed
+  equivalents), never an interactive login prompt. Whichever backend was
+  detected, run its trivial smoke-test invocation (`opencode run --auto
+  "reply ok"` / `claude -p "reply ok" --dangerously-skip-permissions` /
+  `codex exec "reply ok"`) within a short timeout (e.g. 60s — a hang here
+  means the gateway is down, not that the model is slow). If this fails,
+  stop and report the auth/gateway step needed — every ralph iteration
+  depends on it.
 - **Local AI gateway is healthy**, when one is in play (e.g. OmniRoute in
   this stack): `curl -sf <gateway>/v1/models` succeeds. A dead gateway or
   a corrupted backing store (e.g. OmniRoute's `SQLITE_CORRUPT`, see the
