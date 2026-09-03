@@ -807,6 +807,56 @@ record, updated by the actual API calls (not inferred from the UI) —
 a disconnect/reconnect action is a real button that revokes/re-issues the
 credential, not just a client-side toggle.
 
+## 6a5c. Components frequently under-built (only build what the product needs)
+
+Not every product needs every item below — gate each on `docs/PRD.md`
+actually requiring it, never build one nobody asked for. But when the
+PRD DOES call for it, these are commonly where an AI-generated build
+quietly cuts a corner; hold it to the same non-negotiable bar as auth/
+payments, not a "nice to have":
+
+- **AI layer (if the product has an AI feature)**: every provider call
+  goes through one abstraction (not scattered raw SDK calls) with a
+  configured model + a fallback model on failure/timeout, a bounded
+  timeout, and retry with backoff — same fault-tolerance bar as any
+  other external provider (section 2b). Log token counts and per-call
+  cost (even if $0 on a free-tier model) through the same
+  `observability-and-instrumentation` pipeline so spend/usage is
+  queryable, not invisible. **Prompt-injection defense**: user-supplied
+  content that flows into a prompt is never concatenated directly into a
+  system-level instruction — separate user content from instructions
+  (delimiters/structured message roles), and never let AI output alone
+  trigger a privileged action (a payment, a permission change, a delete)
+  without the same server-side authorization check a human-triggered
+  request would need. Validate/parse structured AI output (Zod schema on
+  a JSON response) rather than trusting free-text — a malformed or
+  adversarial response must fail closed, not silently corrupt data.
+- **Admin system (if the product has non-trivial admin needs)**: a real
+  admin-only surface (gated by the same server-side RBAC as section
+  6a3, never a client-only route guard) for user management, role
+  management, and — if applicable — subscription/entitlement overrides
+  and integration health. Every admin action that changes another
+  user's data (role change, suspension, entitlement override) writes an
+  audit-log row (actor, action, target, timestamp) — this is what makes
+  6a3's "prove authorization holds" auditable after the fact, not just
+  at test time.
+- **In-app notifications (if the product has them, distinct from
+  transactional email)**: a real read/unread state per user, a
+  notification preferences surface (per-channel opt-out, not just a
+  global toggle), and the same retry/dead-letter bar as any other
+  background job (section 2b) — a notification that silently fails to
+  deliver is the same class of bug as a silently-dropped email.
+- **Search (if the product's core flow depends on finding records among
+  many — a catalog, a large list, not a 10-row admin table)**: start
+  with the database's own full-text search (Postgres `tsvector`/GIN
+  index) rather than standing up a separate search service by default —
+  only justify a dedicated search engine (Meilisearch/Elasticsearch) in
+  `docs/ARCHITECTURE.md` if the PRD's scale/ranking/autocomplete needs
+  actually exceed what Postgres FTS can do. Either way: a search query
+  that returns zero results is a real empty state (section 6a6), not a
+  blank page, and a search backend outage degrades to "search
+  unavailable, browse instead" rather than a 500.
+
 ## 6a6. Pages & UX-state completeness audit (evidence-based, applicability-gated)
 
 A "production-ready" app is judged on more than the happy path — missing
@@ -922,6 +972,16 @@ report a silent pass.
   provider SDK helper, handler is idempotent (replay the same event ID
   twice, confirm no double-effect), subscription/entitlement re-checked
   server-side per request, prices/amounts computed server-side.
+- [ ] AI layer (if any): every provider call goes through one
+  abstraction with a fallback model, bounded timeout, and retry; a
+  malicious/malformed user prompt cannot trigger a privileged action
+  (payment/permission-change/delete) without the same server-side
+  authorization check a human request needs; structured AI output is
+  Zod-validated, not trusted as free text.
+- [ ] Admin system (if any): every admin action that mutates another
+  user's data writes an audit-log row (actor, action, target,
+  timestamp) — verify by performing one such action and reading the row
+  back, not by reading the code that's supposed to write it.
 - [ ] Errors fail closed: force a 500 in dev and confirm the client
   response is generic with no stack trace/SQL fragment/file path; the
   detail only appears in server logs.
