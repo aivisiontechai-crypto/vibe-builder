@@ -71,12 +71,19 @@ cp -r commands ~/.config/opencode/commands/
 
 ## Slash command
 
-A `/builder` slash command ships under `commands/builder.md` and delegates
-straight to the `builder` skill, so any host that supports the Agent Skills
-format plus slash-command files (Claude Code, opencode, Cursor, Windsurf,
-Codex) gets `/builder <idea>` for free after install. With `npx skills add`
-the command is picked up automatically; with a manual install copy the
-`commands/` directory to the host's commands root (see above).
+A `/builder` slash command delegates straight to the `builder` skill. It ships
+in two places so every install path picks it up:
+
+1. `skills/builder/commands/builder.md` — bundled inside the `builder` skill
+   so `npx skills add <owner>/<repo>` installs the `/builder` command
+   together with the skill itself. Claude Code reads commands from
+   `.claude/skills/<name>/commands/` and exposes them as `/<command>`.
+2. `commands/builder.md` — also shipped at the repo root so opencode (which
+   only reads commands from `.opencode/commands/`, not from inside `skills/`)
+   picks it up after the manual install steps above.
+
+Both files are identical; pick whichever install path you used. Result on
+every supported host: `/builder <idea>`.
 
 ## Skill Structure
 
