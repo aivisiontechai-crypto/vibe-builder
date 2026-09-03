@@ -247,15 +247,17 @@ Required skills: `prompt-architect`, `find-skills`,
 2. **Phase 2 — build: run the `vibe-build` skill, which runs the ralph
    loop.**
    Install the ralph driver (`~/.agents/ralph/scripts/ralph/` →
-   `<project>/scripts/ralph/`) and launch `ralph-opencode.sh` in the
+   `<project>/scripts/ralph/`) and launch the driver script in the
    **background** (`nohup ... > scripts/ralph/ralph.log 2>&1 &`), then
    poll `prd.json` (`passes`), `progress.txt`, and `ralph.log`. Each
-   iteration spawns a fresh headless opencode instance that implements ONE
-   small story; quality checks gate every commit; the loop stops itself on
+   iteration spawns a fresh headless run of the DETECTED backend
+   (`scripts/ralph/.backend` — `opencode`, `claude`, `codex`, or another
+   named CLI; see Prerequisites) that implements ONE small story; quality
+   checks gate every commit; the loop stops itself on
    `<promise>COMPLETE</promise>` when every story passes. Each fresh
    instance has NO memory of prior iterations beyond what's on disk — load
-   `context-engineering` when writing/refreshing `scripts/ralph/OPENCODE.md`
-   (the per-iteration prompt) so every iteration is pointed at the same
+   `context-engineering` when writing/refreshing `scripts/ralph/AGENTS.md`
+   (the per-iteration prompt, CLI-agnostic plain text) so every iteration is pointed at the same
    minimal, high-signal set (docs/, `CONSTRAINTS.md`, `progress.txt` tail,
    the one open story) instead of re-deriving context inconsistently or
    drifting as the project grows. Commits follow `git-workflow-and-versioning`
@@ -263,7 +265,9 @@ Required skills: `prompt-architect`, `find-skills`,
    is a readable history of what ralph actually did.
    - **Budget cap (enforced by you, the supervisor):** before launching,
      record a wall-clock ceiling (default 6 hours) AND a cost ceiling
-     (default: ask `opencode stats` for a recent baseline, else $20) —
+     (default: ask the detected backend's own usage command for a recent
+     baseline — e.g. `opencode stats` — or fall back to $20 when the
+     backend has no such command) —
      wall-clock alone misses a loop that's fast but expensive per
      iteration. Poll both, not just time, on the same cadence as
      `prd.json`. These are STALL-detection thresholds, not a hard budget
@@ -291,8 +295,8 @@ Required skills: `prompt-architect`, `find-skills`,
    - **Abort switch:** the loop can always be stopped safely with
      `kill $(cat scripts/ralph/.ralph.pid) $(cat scripts/ralph/.iteration.pid 2>/dev/null) 2>/dev/null`
      — no state is lost (git history + `prd.json` + `progress.txt`);
-     re-running `ralph-opencode.sh` resumes at the next `passes: false`
-     story.
+     re-running the driver script resumes at the next `passes: false`
+     story, using the same backend recorded in `scripts/ralph/.backend`.
    - Unblock a stuck iteration rather than re-running green stories. Load
      `debugging-and-error-recovery` for the systematic version of this
      rather than guessing: diagnose the SHAPE of the stall before
@@ -302,10 +306,11 @@ Required skills: `prompt-architect`, `find-skills`,
      ceiling on more rejected calls; repeated identical tool/provider
      5xx/timeout errors within 2-3 iterations — back off (shorter) and
      relaunch as-is; no commits landing for 3+ clean iterations points at a
-     permission deny-list (`opencode.json` `permission` rules) blocking
-     headless bash/edit; a stalled but error-free iteration usually means
-     the story is too big or a docs fact is missing — fix `prd.json`/docs,
-     not the driver.
+     permission deny-list blocking headless bash/edit (the backend's own
+     config — `opencode.json` `permission` rules, `claude`'s settings,
+     `codex`'s sandbox policy); a stalled but error-free iteration usually
+     means the story is too big or a docs fact is missing — fix
+     `prd.json`/docs, not the driver.
 3. **Phase 3 — final gates before reporting.**
    - Prove the loop actually finished: `scripts/ralph/heartbeat.state`
      ends `DONE` (not `FAILED`) AND `jq -r
@@ -423,7 +428,7 @@ Required skills: `prompt-architect`, `find-skills`,
      e.g. rate-limit/permission-deny/oversized-story>); skill-gaps=<skill
      name(s) that underperformed or a phase that had none, or "none">;
      strix-rounds=<n, if >0 note the finding class>; checklist-fails=<6c
-     items that needed a fix, or "none">; cost=<opencode stats total>`.
+     items that needed a fix, or "none">; cost=<detected backend's usage-stats total, or "n/a">`.
      Pull the values from data already gathered in this same phase (stall
      diagnosis in Phase 2, the Phase 3 status table, Strix triage rounds,
      `opencode stats`) — never re-derive or guess them. This is the ONLY
