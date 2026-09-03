@@ -489,11 +489,25 @@ small story from `prd.json`. Memory between iterations = git history,
 context drift. The full product is built this way — nothing is MVP-cut,
 everything is ordered by story priority across the whole scope.
 
-1. **Install the driver into the project** (once):
+1. **Install the driver into the project** (once). Resolve the source in
+   this order — never fail the whole build just because one machine
+   hasn't got the driver pre-installed:
+   1. `~/.agents/ralph/scripts/ralph/` if it exists (the common case on a
+      machine that's run `/builder` before).
+   2. the copy bundled inside this skill's own package (when installed
+      from the standalone `builder` distribution: `<builder-package-root>/
+      ralph/scripts/ralph/`, i.e. a sibling of `skills/` in the same
+      unzipped/cloned tree) — this is what makes a fresh machine
+      self-contained with no extra setup step.
+   3. only if neither exists, clone the upstream driver
+      (`snarktank/ralph`) and adapt it — report this fallback explicitly
+      since it's the slow path, not the default.
    ```bash
    mkdir -p scripts/ralph
-   cp -r "$HOME/.agents/ralph/scripts/ralph/." scripts/ralph/
+   cp -r "$HOME/.agents/ralph/scripts/ralph/." scripts/ralph/ 2>/dev/null \
+     || cp -r "<builder-package-root>/ralph/scripts/ralph/." scripts/ralph/
    chmod +x scripts/ralph/ralph-opencode.sh scripts/ralph/ralph-driver.sh scripts/ralph/ralph-iteration.sh scripts/ralph/ralph-heartbeat.sh
+   ln -sf ralph-opencode.sh scripts/ralph/ralph-driver.sh
    ```
    The driver is named `ralph-opencode.sh` for historical reasons (with a
    `ralph-driver.sh` symlink alias) but is NOT opencode-exclusive:

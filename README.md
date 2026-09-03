@@ -25,6 +25,16 @@ complete, production-ready fullstack application.
 Self-improvement loop: refreshes installed skills and hunts for better ones
 for every phase of the builder pipeline.
 
+### ralph/ (bundled driver, not a skill)
+
+`ralph/scripts/ralph/` ships the ralph build-loop driver (`ralph-opencode.sh`
+/ `ralph-driver.sh`, `ralph-iteration.sh`, `ralph-heartbeat.sh`,
+`OPENCODE.md`) so `vibe-build` is self-contained on a fresh machine even
+without a pre-existing `~/.agents/ralph/` install. The driver auto-detects
+and dispatches to `opencode`, `claude`, or `codex` — whichever headless CLI
+is found on PATH — recording the choice in `scripts/ralph/.backend` per
+project so it never switches CLIs mid-build.
+
 ## Installation
 
 Install all four skills:
