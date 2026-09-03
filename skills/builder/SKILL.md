@@ -1,6 +1,6 @@
 ---
 name: builder
-description: End-to-end idea-to-production-app orchestrator. Use when the user invokes the builder ("builder: <idea>", "use the builder", "/builder <idea>", "turn this idea into an app", "take this idea to production", "make <app> hands-free") or paste a one-line app idea and expects the full pipeline. Briefs the raw idea via prompt-architect into a research-oriented prompt, then chains vibe-docs (brief -> complete docs/) then vibe-build (docs -> production-ready fullstack app). Non-negotiables: hands-free (zero clarifying questions), no mock/dummy/hardcoded data, real DB + real auth + real integrations, all security measures, production readiness. Do NOT start coding until vibe-docs has produced docs/.
+description: "End-to-end idea-to-production-app orchestrator. Use when the user invokes the builder (\"builder: <idea>\", \"use the builder\", \"/builder <idea>\", \"turn this idea into an app\", \"take this idea to production\", \"make <app> hands-free\") or paste a one-line app idea and expects the full pipeline. Briefs the raw idea via prompt-architect into a research-oriented prompt, then chains vibe-docs (brief -> complete docs/) then vibe-build (docs -> production-ready fullstack app). Non-negotiables: hands-free (zero clarifying questions), no mock/dummy/hardcoded data, real DB + real auth + real integrations, all security measures, production readiness. Do NOT start coding until vibe-docs has produced docs/."
 ---
 
 # builder — idea → production-ready app, hands-free

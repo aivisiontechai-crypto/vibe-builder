@@ -1,6 +1,6 @@
 ---
 name: vibe-docs
-description: Use when the user describes a new product, app, SaaS, or feature idea and wants it turned into the full set of product and engineering docs — BRD, PRD, technical architecture, data model, API spec, DESIGN.md, security plan, test plan, deployment runbook. Also use when they say "turn my idea into a fullstack app", "build docs for my idea", "write the prd and brd", "vibe coding", "give me an idea", or paste a short concept and want it fleshed out. Idea-to-docs is hands-free: ask NO clarifying questions, make the decisive assumptions yourself, and record them. Do NOT write application code — docs only; the vibe-build skill consumes these docs.
+description: "Use when the user describes a new product, app, SaaS, or feature idea and wants it turned into the full set of product and engineering docs - BRD, PRD, technical architecture, data model, API spec, DESIGN.md, security plan, test plan, deployment runbook. Also use when they say \"turn my idea into a fullstack app\", \"build docs for my idea\", \"write the prd and brd\", \"vibe coding\", \"give me an idea\", or paste a short concept and want it fleshed out. Idea-to-docs is hands-free: ask NO clarifying questions, make the decisive assumptions yourself, and record them. Do NOT write application code - docs only; the vibe-build skill consumes these docs."
 ---
 
 # vibe-docs — idea → complete product & engineering docs
