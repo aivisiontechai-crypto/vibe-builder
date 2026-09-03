@@ -493,21 +493,20 @@ everything is ordered by story priority across the whole scope.
    ```bash
    mkdir -p scripts/ralph
    cp -r "$HOME/.agents/ralph/scripts/ralph/." scripts/ralph/
-   chmod +x scripts/ralph/ralph-opencode.sh scripts/ralph/ralph-iteration.sh scripts/ralph/ralph-heartbeat.sh
+   chmod +x scripts/ralph/ralph-opencode.sh scripts/ralph/ralph-driver.sh scripts/ralph/ralph-iteration.sh scripts/ralph/ralph-heartbeat.sh
    ```
-   The shipped driver is named `ralph-opencode.sh` for historical reasons
-   but is NOT opencode-exclusive: `ralph-iteration.sh` reads
-   `scripts/ralph/.backend` (written during Prerequisites detection) and
-   dispatches to whichever CLI invocation matches — if the copy on this
-   machine only knows the opencode invocation, wrap it: read `.backend`
-   at the top of `ralph-iteration.sh` and branch to the matching command
-   (`opencode run --auto`, `claude -p --dangerously-skip-permissions`, or
-   `codex exec`) before the story prompt is sent, rather than hardcoding
-   one CLI. `AGENTS.md` (the per-iteration agent instructions — one
-   story, quality gates, browser verification, commit, `passes: true`,
-   `progress.txt`, AGENTS.md patterns, COMPLETE marker) is CLI-agnostic
-   already since every backend above reads plain-text instructions the
-   same way. Read both before running; they are your ground truth.
+   The driver is named `ralph-opencode.sh` for historical reasons (with a
+   `ralph-driver.sh` symlink alias) but is NOT opencode-exclusive:
+   `ralph-iteration.sh` reads `scripts/ralph/.backend` (auto-detected on
+   first launch in opencode → claude → codex order, or set explicitly via
+   `./ralph-opencode.sh --tool claude`) and dispatches to the matching
+   invocation (`opencode run --auto`, `claude -p
+   --dangerously-skip-permissions`, or `codex exec`) — no manual wrapping
+   needed. `OPENCODE.md`/`AGENTS.md` (the per-iteration agent
+   instructions — one story, quality gates, browser verification, commit,
+   `passes: true`, `progress.txt`, patterns, COMPLETE marker) is
+   CLI-agnostic plain text read the same way by every backend. Read both
+   before running; they are your ground truth.
 2. **Phase 0 — hands-free provisioning (you, in this session).** Remove
    every environment blocker BEFORE the loop starts so nothing stalls
    behind infra:
