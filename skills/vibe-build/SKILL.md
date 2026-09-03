@@ -1231,8 +1231,9 @@ report a silent pass.
   count if a budget cap stopped the loop early), what is env-gated
   (credentials the user must supply, read from
   `scripts/ralph/.admin-credentials`/`.env`, never restated inline), the
-  one command to run it, and total cost/tokens for the run (`opencode
-  stats --days 1`).
+  one command to run it, and total cost/tokens for the run (the detected
+  backend's usage-stats command, e.g. `opencode stats --days 1`, when it
+  has one — otherwise "n/a").
 
 ## 7b. AI agent self-audit (answer before declaring ANY story or the final build complete)
 
