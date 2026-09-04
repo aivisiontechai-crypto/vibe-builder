@@ -38,6 +38,11 @@ path (see Project/boundary rules), not a rebuild.
   Debian/Ubuntu → `apt`, other Linux → name the distro's own manager,
   never assume `brew` on Linux) — never start a multi-hour run destined
   to fail on a missing tool.
+- **Shell runtime**: the bundled ralph driver is POSIX Bash, not PowerShell.
+  On Windows, verify `bash` from Git for Windows or WSL is available and run
+  the driver and setup script inside that shell. Do not paste `nohup`,
+  `flock`, `chmod`, `kill`, or `lsof` commands into PowerShell. If Bash is
+  absent, stop with the exact prerequisite instead of starting a partial run.
 - **Headless build-agent backend (auto-detected, agent-agnostic)**: the
   ralph loop (Phase 2) needs ONE CLI capable of a non-interactive,
   tool-using run. Detect in this preference order and use the FIRST one
@@ -60,8 +65,9 @@ path (see Project/boundary rules), not a rebuild.
   runs multiple `docker-compose` stacks side by side (other projects'
   Postgres/Redis/app containers, an existing local AI gateway, etc.) —
   before scaffolding this project's own `docker-compose.yml`, check
-  `docker ps --format '{{.Ports}}'` (or `lsof -iTCP -sTCP:LISTEN -P` as a
-  fallback) for every port this project's compose file is about to bind
+  `docker ps --format '{{.Ports}}'` (or `lsof -iTCP -sTCP:LISTEN -P` on
+  POSIX, or `Get-NetTCPConnection -State Listen` in PowerShell) for every
+  port this project's compose file is about to bind
   (Postgres, the app's dev/prod port, any cache/queue). On a collision,
   do NOT silently reuse the busy port — pick the next free port in the
   same family (e.g. `5432→5433`), record the remap in `docker-
@@ -143,7 +149,7 @@ Required skills: `prompt-architect`, `find-skills`,
 `documentation-and-adrs`, `source-driven-development`,
 `vercel-optimize`, `vercel-react-view-transitions`.
 
-1. **Check** each name against the three search roots for a directory with
+1. **Check** each name against all five search roots for a directory with
    a valid `SKILL.md` (`name:` + `description:` frontmatter present).
 2. **Install what's missing**, non-interactively:
    `CI=1 npx -y skills add <owner/repo>@<skill> -g -y`, using the source
@@ -178,9 +184,11 @@ Required skills: `prompt-architect`, `find-skills`,
    every project's builder run — a second run against a DIFFERENT
    project directory is explicitly allowed (see the Prerequisites lock,
    which only guards the SAME project) and may be appending at the same
-   moment. Wrap the append in `flock` against a sidecar lock file (e.g.
-   `flock ~/.agents/skills/LEDGER.md.lock -c '...append...'`) so two
-   concurrent runs never interleave writes into the same line/section.
+  moment. Serialize the append: use `flock` against a sidecar lock file on
+  POSIX, or an atomic lock directory (`mkdir <ledger>.lockdir`, bounded
+  retry, cleanup on exit, and stale-owner recovery only when the owner PID
+  is demonstrably gone) when `flock` is unavailable. Two concurrent runs
+  must never interleave writes into the same line/section.
 4. **A skill that fails verification is a hard stop for THAT skill's
    phase only** — degrade explicitly (e.g. "security-and-hardening
    unavailable, skipping the final security pass — fix before shipping")
@@ -246,9 +254,10 @@ Required skills: `prompt-architect`, `find-skills`,
      decisions nobody actually specified.
 2. **Phase 2 — build: run the `vibe-build` skill, which runs the ralph
    loop.**
-   Install the ralph driver (`~/.agents/ralph/scripts/ralph/` →
-   `<project>/scripts/ralph/`) and launch the driver script in the
-   **background** (`nohup ... > scripts/ralph/ralph.log 2>&1 &`), then
+  Install the ralph driver (`~/.agents/ralph/scripts/ralph/` →
+  `<project>/scripts/ralph/`) and launch the cross-platform Node runner in
+  the **background** using the host OS process manager (`Start-Process` on
+  Windows, `nohup` on POSIX), then
    poll `prd.json` (`passes`), `progress.txt`, and `ralph.log`. Each
    iteration spawns a fresh headless run of the DETECTED backend
    (`scripts/ralph/.backend` — `opencode`, `claude`, `codex`, or another
@@ -308,9 +317,14 @@ Required skills: `prompt-architect`, `find-skills`,
      relaunch as-is; no commits landing for 3+ clean iterations points at a
      permission deny-list blocking headless bash/edit (the backend's own
      config — `opencode.json` `permission` rules, `claude`'s settings,
-     `codex`'s sandbox policy); a stalled but error-free iteration usually
-     means the story is too big or a docs fact is missing — fix
-     `prd.json`/docs, not the driver.
+      `codex`'s sandbox policy); a stalled but error-free iteration usually
+      means the story is too big or a docs fact is missing — fix
+      `prd.json`/docs, not the driver. To STOP the loop cleanly (killing the
+      process just gets it relaunched by the heartbeat) drop
+      `touch scripts/ralph/.halt`; the driver halts at the next iteration
+      boundary and the heartbeat exits without relaunching (both clear the
+      sentinel). Fix the stall, then relaunch with the same command — the
+      recorded `.backend` is reused.
 3. **Phase 3 — final gates before reporting.**
    - Prove the loop actually finished: `scripts/ralph/heartbeat.state`
      ends `DONE` (not `FAILED`) AND `jq -r
@@ -537,17 +551,20 @@ and the final report.
   matching directory/title is this one; if the launch command set
   `--title`, match on that. Append one line —
   `<timestamp>  builder-supervisor  <sessionID>  <absolute path>` — to
-  `<absolute path>/.opencode-sessions.log` (create it if missing; this
+  `<absolute path>/.ralph-sessions.log` (create it if missing; this
   file is gitignored, see the `.gitignore` handling in vibe-build section
-  4). Every ralph iteration later appends its own session id to this SAME
-  file (see vibe-build section 4), so by the end it is a single
-  chronological index of every opencode session this run ever spawned —
-  `opencode session list` (to confirm it's a real, current session) then
-  `opencode <absolute path> --session <sessionID>` against any line opens
-  that exact session live in the TUI (`opencode attach <url>` is for
-  attaching to a running *server*, not a session id — do not confuse the
-  two), letting the user watch that exact moment of the build happen, not
-  just read about it after the fact in a log.
+  4). This file is the supervisor's own re-attach index — `opencode
+  session list` (to confirm it's a real, current session) then `opencode
+  <absolute path> --session <sessionID>` against any line opens that exact
+  session live in the TUI (`opencode attach <url>` is for attaching to a
+  running *server*, not a session id — do not confuse the two), letting
+  the user watch that exact moment of the build happen rather than only
+  reading about it after the fact. Ralph's spawned iterations do NOT open
+  separate sessions — they re-invoke the backend headless and stream their
+  full transcript to `scripts/ralph/ralph.log` (see vibe-build section 4),
+  which is the single source of truth for supervising the loop; for
+  `claude`/`codex`, the same supervisor resume applies via their own
+  `--resume <id>`/`session list` mechanism where the backend exposes one.
 - **Resume is automatic and cheap to check:** the prompt-architect brief
   step always runs first (it's cheap — one prompt, no docs generation) so
   there's a fresh `BRIEF.md` to compare against, THEN decide same-idea

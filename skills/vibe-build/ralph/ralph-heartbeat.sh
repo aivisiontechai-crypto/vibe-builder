@@ -16,12 +16,13 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-DRIVER="$SCRIPT_DIR/ralph-opencode.sh"
+DRIVER="$SCRIPT_DIR/ralph-driver.sh"
 PRD_FILE="$PROJECT_ROOT/prd.json"
 LOG_FILE="$SCRIPT_DIR/ralph.log"
 PID_FILE="$SCRIPT_DIR/.ralph.pid"
 ITER_PID_FILE="$SCRIPT_DIR/.iteration.pid"
 STATE_FILE="$SCRIPT_DIR/heartbeat.state"
+HALT_FILE="$SCRIPT_DIR/.halt"
 
 POLL_SECS="${HEARTBEAT_POLL_SECS:-30}"
 IDLE_TTL="${HEARTBEAT_IDLE_TTL:-900}"
@@ -43,13 +44,10 @@ log_size() { # portable size (macOS stat -f, GNU stat -c)
 
 kill_tree() { # pid + all descendants, hard
   local p="$1"
+  local kids
+  kids=$(pgrep -P "$p" 2>/dev/null || true)
+  for k in $kids; do kill_tree "$k"; done
   kill -9 "$p" 2>/dev/null || true
-  while :; do
-    local kids; kids=$(pgrep -P "$p" 2>/dev/null || true)
-    [ -z "$kids" ] && break
-    for k in $kids; do kill -9 "$k" 2>/dev/null || true; done
-    sleep 1
-  done
 }
 
 LAST_SIZE=""
@@ -64,6 +62,12 @@ while :; do
   if [ -z "$OPEN" ]; then
     log_state "FAILED prd.json unreadable"
     exit 1
+  fi
+  # a supervisor requested a clean stop: halt the loop and do NOT relaunch it
+  if [ -f "$HALT_FILE" ]; then
+    log_state "HALT requested ($OPEN stories open) — stopping and not relaunching"
+    rm -f "$HALT_FILE"
+    exit 0
   fi
   if [ "$OPEN" -eq 0 ]; then
     log_state "DONE all stories pass"

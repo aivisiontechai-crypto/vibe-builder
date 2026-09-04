@@ -45,7 +45,7 @@ installed:
     - source-driven-development  # grounds each ralph iteration's stack decisions (Next.js/Prisma/Auth.js) in current official docs, not stale training data
   references:
     - @design-md  -> ~/.agents/design-md/awesome-design-md (DESIGN.md collections)
-    - ralph       -> ~/.agents/ralph (loop driver, adapted to opencode)
+    - ralph       -> ~/.agents/ralph (loop driver, backend-agnostic: opencode/claude/codex; bundled in skills/vibe-build/ralph/)
 
 changeLog:
   - 2026-09-03: cross-checked the 30-phase "Complete Web & SaaS Vibe Coding Checklist" PDF against the installed toolchain; found and closed 2 of 6 gaps — added addyosmani/web-quality-skills@seo (43.2K installs, official maintainer, MIT) for SEO/meta/structured-data and resend/email-best-practices + resend/react-email (official Resend maintainer) for email deliverability. Caching/CDN partially covered via web-quality-skills' @performance skill. Stripe/payments and dedicated analytics remain uncovered — no verified official skill found on skills.sh (searches returned no real results); documented as manual-implementation-only per the checklist's own prompts. Wired seo/email-best-practices/react-email into builder's Required-skills list and dependency-install source mapping.

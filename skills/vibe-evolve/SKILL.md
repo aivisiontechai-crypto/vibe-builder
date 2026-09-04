@@ -88,8 +88,9 @@ this as a small, additive documentation patch, not a rewrite:
   away; that would be silently lowering the bar, exactly what
   `constraint-driven-development` exists to prevent.
 - **Scope guard**: only edit the custom pipeline skills
-  (`builder`/`vibe-docs`/`vibe-build`/`vibe-evolve` SKILL.md under
-  `~/.config/opencode/skills/` or this repo's `.claude/skills/`) — never
+  (`builder`/`vibe-docs`/`vibe-build`/`vibe-evolve` SKILL.md wherever the
+  current host agent installs them — e.g. the detected backend's skills
+  directory or this repo's `.claude/skills/`) — never
   patch a third-party skill's file directly; a third-party gap goes
   through step 3/4's install-a-better-skill path instead.
 - **Record distinctly**: append to `LEDGER.md` `changeLog` with a

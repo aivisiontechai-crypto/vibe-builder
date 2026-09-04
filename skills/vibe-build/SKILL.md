@@ -494,29 +494,33 @@ everything is ordered by story priority across the whole scope.
    hasn't got the driver pre-installed:
    1. `~/.agents/ralph/scripts/ralph/` if it exists (the common case on a
       machine that's run `/builder` before).
-   2. the copy bundled inside this skill's own package (when installed
-      from the standalone `builder` distribution: `<builder-package-root>/
-      ralph/scripts/ralph/`, i.e. a sibling of `skills/` in the same
-      unzipped/cloned tree) — this is what makes a fresh machine
-      self-contained with no extra setup step.
+   2. the copy bundled inside this skill's own package
+      (`<vibe-build-skill>/ralph/`, i.e. a sibling of `SKILL.md` — this
+      ships with `npx skills add ...` so a fresh install is truly
+      self-contained with no extra setup step).
    3. only if neither exists, clone the upstream driver
       (`snarktank/ralph`) and adapt it — report this fallback explicitly
       since it's the slow path, not the default.
    ```bash
    mkdir -p scripts/ralph
    cp -r "$HOME/.agents/ralph/scripts/ralph/." scripts/ralph/ 2>/dev/null \
-     || cp -r "<builder-package-root>/ralph/scripts/ralph/." scripts/ralph/
-   chmod +x scripts/ralph/ralph-opencode.sh scripts/ralph/ralph-driver.sh scripts/ralph/ralph-iteration.sh scripts/ralph/ralph-heartbeat.sh
-   ln -sf ralph-opencode.sh scripts/ralph/ralph-driver.sh
+     || cp -r "<vibe-build-skill>/ralph/." scripts/ralph/
+  chmod +x scripts/ralph/ralph-driver.sh scripts/ralph/ralph-iteration.sh scripts/ralph/ralph-heartbeat.sh
    ```
-   The driver is named `ralph-opencode.sh` for historical reasons (with a
-   `ralph-driver.sh` symlink alias) but is NOT opencode-exclusive:
+  The canonical OS-agnostic entry point is `node
+  scripts/ralph/ralph-runner.mjs 200`. It uses Node's process and filesystem
+  APIs, so it works on Windows, macOS, and Linux without Bash, `nohup`,
+  `flock`, `kill`, or POSIX `stat`. The `.sh` driver and heartbeat remain as
+  backwards-compatible POSIX integrations; they are not the required path.
+   The driver is `ralph-driver.sh` (backend-neutral; auto-detects and
+   dispatches to opencode, claude, or codex):
    `ralph-iteration.sh` reads `scripts/ralph/.backend` (auto-detected on
-   first launch in opencode → claude → codex order, or set explicitly via
-   `./ralph-opencode.sh --tool claude`) and dispatches to the matching
+   first launch as the first available of opencode / claude / codex, or set
+   explicitly via
+   `./ralph-driver.sh --tool claude`) and dispatches to the matching
    invocation (`opencode run --auto`, `claude -p
    --dangerously-skip-permissions`, or `codex exec`) — no manual wrapping
-   needed. `OPENCODE.md`/`AGENTS.md` (the per-iteration agent
+   needed. `RALPH.md`/`AGENTS.md` (the per-iteration agent
    instructions — one story, quality gates, browser verification, commit,
    `passes: true`, `progress.txt`, patterns, COMPLETE marker) is
    CLI-agnostic plain text read the same way by every backend. Read both
@@ -539,11 +543,12 @@ everything is ordered by story priority across the whole scope.
 - `.gitignore` handles the loop artifacts: IGNORE `build.log`,
       `ralph.log`, `heartbeat.log`, `heartbeat.state`, `.ralph.pid`,
       `.iteration.pid`, `scripts/ralph/.last-branch`,
+      `scripts/ralph/.halt`,
       `scripts/ralph/archive/`, `scripts/ralph/.admin-credentials`,
-      `.opencode-sessions.log`,
+      `.ralph-sessions.log`,
       `.env`, `.env.*`, `node_modules`, `.next`; TRACK `prd.json`,
       `progress.txt`, and `scripts/ralph/` (driver + iteration + heartbeat
-      + OPENCODE.md) so the build's memory, task list, and watcher travel
+      + RALPH.md) so the build's memory, task list, and watcher travel
       with the repo.
 - `.env` exists (gitignored): generate it from `prd.json.envVars` —
       `from: "auto"` vars get real random secrets (`openssl rand -hex 32`
@@ -581,13 +586,18 @@ everything is ordered by story priority across the whole scope.
      the gitignored `.env` (Strix reads them at CLI time; the app env module
      stays untouched), and optionally `STRIX_REASONING_EFFORT=high`.
 3. **Run the loop in the BACKGROUND.** A full-product build runs for hours
-   — a foreground call will outlive any single command cap, so launch it
-   detached and poll:
+  — a foreground call will outlive any single command cap. Launch the
+  Node runner with the host OS's process manager: on PowerShell use
+  `Start-Process node -ArgumentList 'scripts/ralph/ralph-runner.mjs','200'`
+  with output redirected to `scripts/ralph/ralph.log`; on POSIX use
+  `nohup node scripts/ralph/ralph-runner.mjs 200 > scripts/ralph/ralph.log 2>&1 &`.
+  Do not run both the Node runner and the legacy shell driver:
    ```bash
-   nohup ./scripts/ralph/ralph-opencode.sh 200 > scripts/ralph/ralph.log 2>&1 &
-   nohup ./scripts/ralph/ralph-heartbeat.sh > scripts/ralph/heartbeat.log 2>&1 &
+  node scripts/ralph/ralph-runner.mjs 200
    ```
-   The **heartbeat is model/token-free** (pure shell): it watches
+  The Node runner is model/token-free supervision around each iteration and
+  writes `heartbeat.state` as `RUNNING`, `DONE`, or `FAILED`. The legacy
+  heartbeat is pure shell and watches
    `.ralph.pid`/`.iteration.pid` + `ralph.log` growth and self-heals the
    loop — kills an iteration idle > HEARTBEAT_IDLE_TTL (default 15 min),
    relaunches a dead driver (up to HEARTBEAT_MAX_RELAUNCH=6), and exits 0
@@ -598,22 +608,18 @@ everything is ordered by story priority across the whole scope.
    at `progress.txt`. Prior runs are archived to `scripts/ralph/archive/`
    automatically when `branchName` changes. A 45-min per-iteration hang cap
    is active when `gtimeout` (brew install coreutils) is on PATH.
-   - **Every iteration's session/transcript id is captured, not just its
-     log**, when the backend supports it. For `opencode`, each spawned
-     `opencode run` uses `--print-logs --title "ralph-iter-<n>"`;
-     `ralph-iteration.sh` greps the `id=ses_...` it emits and appends
-     `<timestamp>  ralph-iter-<n>  <sessionID>` to
-     `<project>/.opencode-sessions.log` (the same file the top-level
-     builder supervisor wrote its own session id to — see builder's
-     Project/boundary rules). For `claude`/`codex`, log the equivalent
-     transcript/session identifier the CLI exposes (e.g. `claude --resume
-     <id>`, `codex exec --json` run id) to the same log file so the
-     pattern travels across backends. `tail -f .opencode-sessions.log`
-     (or the backend's equivalent log) next to `tail -f
-     scripts/ralph/ralph.log` lets the user pick any in-flight or past
-     iteration and re-attach with that backend's own resume/session
-     command to literally watch that iteration work in real time instead
-     of only reading its log output after the fact.
+    - **Every iteration's full transcript streams to `ralph.log`** (the
+      backend command is `>> scripts/ralph/ralph.log`), so you can
+      `tail -20 scripts/ralph/ralph.log` to see exactly what the current or
+      last iteration did in real time. If you need to re-attach to a
+      specific live session, look for the run/session id inside that log
+      and use the backend's own resume command (`opencode session <id>`,
+      `claude --resume <id>`, `codex exec --resume <id>`) — the transcript
+      is always there, and each `scripts/ralph/archive/<date>-<branch>/`
+      snapshot keeps the prior run's `prd.json` + `progress.txt` alongside
+      `ralph.log`. The driver does not open a separate agent session per
+      iteration; it re-invokes the backend headless, which is why the log is
+      the single source of truth for supervision.
 4. **Supervise — poll, don't babysit.** The loop is autonomous; you own the
    outcome. Every few minutes check in with:
    ```bash
@@ -622,6 +628,12 @@ everything is ordered by story priority across the whole scope.
    tail -20 scripts/ralph/ralph.log                                   # last iteration
    git log --oneline -10                                              # commit stream
    ```
+   **To stop the loop cleanly** (it self-heals, so killing the process just
+   gets it relaunched): drop `touch scripts/ralph/.halt` — the driver stops
+   at the next iteration boundary and the heartbeat exits without relaunching
+   (both also clean up the sentinel). Use this before fixing a stall, then
+   relaunch with the same command (`.backend` is already recorded, so the
+   same backend is reused).
    If ~3 consecutive iterations flip no `passes: false → true`, pause/kill
    the loop, diagnose the SHAPE of the stall before relaunching:
    - **Repeated identical provider errors (5xx/timeout) in `ralph.log`**:
