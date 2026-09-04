@@ -51,7 +51,8 @@ interview questions. You answer them.
 
 **Standalone dependency check** (skip if invoked via the `builder` skill —
 it already ran this): if `design-taste-frontend`, `ui-ux-pro-max`, or
-`impeccable` is not installed under `~/.opencode/skills/` or
+`impeccable` is not installed under `~/.opencode/skills/`,
+`~/.claude/skills/`, or
 `~/.agents/skills/`, install it now — `CI=1 npx -y skills add
 Leonxlnx/taste-skill@design-taste-frontend -g -y` for the design-taste
 skill — before reaching the DESIGN.md step, rather than discovering the

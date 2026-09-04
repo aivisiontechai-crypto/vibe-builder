@@ -1,4 +1,4 @@
-# Ralph agent instructions (opencode)
+# Ralph agent instructions
 
 You are one autonomous iteration in the ralph loop: build ONE user story of a
 real fullstack application, hands-free. Everything you need lives on disk.
@@ -22,10 +22,13 @@ real fullstack application, hands-free. Everything you need lives on disk.
 ## Your task this iteration
 
 0. If a previous iteration was hard-killed by the heartbeat mid-work, the
-   tree may hold PARTIAL uncommitted edits. Clear them first: `git
-   checkout -- .` on tracked files (green work is always committed, so this
-   never loses a finished story). Never delete untracked `prd.json`,
-   `progress.txt`, or `scripts/ralph/`.
+   tree may hold PARTIAL uncommitted edits. Inspect `git status --short` and
+   the current story before changing anything. Never run `git checkout -- .`
+   or another blanket restore: the project may contain user work that the
+   loop did not create. Preserve unrelated edits, continue only with clearly
+   story-related partial work, and record an ambiguous recovery as a stall in
+   `progress.txt` rather than destroying files. Never delete untracked
+   `prd.json`, `progress.txt`, or `scripts/ralph/`.
 1. Pick the highest-priority `userStory` with `passes: false`. Work ONLY
    that story.
 2. Implement it end-to-end: schema migration (if any) → API → UI → tests,
