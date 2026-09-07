@@ -1,10 +1,10 @@
 #!/bin/bash
-# ralph-opencode.sh — the ralph loop, backend-agnostic (opencode/claude/codex).
+# ralph-driver.sh — the ralph loop, backend-agnostic (opencode/claude/codex).
 # Spawns a FRESH headless instance of the detected backend per iteration;
 # memory persists via git history, progress.txt, and prd.json (passes).
 # Stops when every story passes: true (`<promise>COMPLETE</promise>`).
 # Run from anywhere; PROJECT_ROOT = the directory above scripts/ralph.
-# Usage: ./ralph-opencode.sh [max_iterations] [--tool opencode|claude|codex]
+# Usage: ./ralph-driver.sh [max_iterations] [--tool opencode|claude|codex]
 # Companion: ralph-heartbeat.sh watches .ralph.pid/.iteration.pid + ralph.log
 # and self-heals this loop (kill hung iterations, relaunch on death).
 set -e
@@ -30,30 +30,29 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 PRD_FILE="$PROJECT_ROOT/prd.json"
 PROGRESS_FILE="$PROJECT_ROOT/progress.txt"
 LOG_FILE="$SCRIPT_DIR/ralph.log"
-PROMPT_FILE="$SCRIPT_DIR/OPENCODE.md"
+PROMPT_FILE="$SCRIPT_DIR/RALPH.md"
 ITERATION_SCRIPT="$SCRIPT_DIR/ralph-iteration.sh"
 LAST_BRANCH_FILE="$SCRIPT_DIR/.last-branch"
 ARCHIVE_DIR="$SCRIPT_DIR/archive"
 PID_FILE="$SCRIPT_DIR/.ralph.pid"
 ITER_PID_FILE="$SCRIPT_DIR/.iteration.pid"
 BACKEND_FILE="$SCRIPT_DIR/.backend"
+HALT_FILE="$SCRIPT_DIR/.halt"
 
 # Backend resolution: explicit --tool wins; else reuse a previously
 # recorded backend (so a resumed run never silently switches CLIs
-# mid-build); else auto-detect in opencode -> claude -> codex order.
+# mid-build); else auto-detect the first available of opencode / claude /
+# codex in PATH order (no backend is preferred over another).
 if [ -n "$FORCE_BACKEND" ]; then
   BACKEND="$FORCE_BACKEND"
 elif [ -f "$BACKEND_FILE" ]; then
   BACKEND="$(cat "$BACKEND_FILE")"
-elif command -v opencode >/dev/null 2>&1; then
-  BACKEND="opencode"
-elif command -v claude >/dev/null 2>&1; then
-  BACKEND="claude"
-elif command -v codex >/dev/null 2>&1; then
-  BACKEND="codex"
 else
-  echo "no supported headless backend found on PATH (need one of: opencode, claude, codex)"
-  exit 1
+  BACKEND=""
+  for cand in opencode claude codex; do
+    if command -v "$cand" >/dev/null 2>&1; then BACKEND="$cand"; break; fi
+  done
+  [ -n "$BACKEND" ] || { echo "no supported headless backend found on PATH (need one of: opencode, claude, codex)"; exit 1; }
 fi
 command -v "$BACKEND" >/dev/null 2>&1 || { echo "$BACKEND CLI is required on PATH"; exit 1; }
 printf '%s\n' "$BACKEND" > "$BACKEND_FILE"
@@ -68,6 +67,17 @@ command -v jq       >/dev/null 2>&1 || { echo "jq is required (brew install jq)"
 # light shape check: must be ralph-shaped before we start
 jq -e '.project and .branchName and (.userStories | length > 0)' "$PRD_FILE" >/dev/null 2>&1 \
   || { echo "prd.json is not ralph-shaped (needs project, branchName, userStories[])"; exit 1; }
+
+# single-instance lock: refuse to run a second loop against the same project
+# (two racing drivers would both flip stories and corrupt prd.json). A stale
+# pid file with a dead PID is reclaimed; a live PID means an active loop.
+if [ -f "$PID_FILE" ]; then
+  OLD_PID="$(cat "$PID_FILE" 2>/dev/null || true)"
+  if [ -n "$OLD_PID" ] && kill -0 "$OLD_PID" 2>/dev/null; then
+    echo "another ralph driver is already running for $PROJECT_ROOT (pid $OLD_PID) — refusing to start a second loop."
+    exit 1
+  fi
+fi
 
 # publish our PID for the heartbeat, clean it up on every exit
 echo "$$" > "$PID_FILE"
@@ -103,6 +113,15 @@ for i in $(seq 1 "$MAX_ITERATIONS"); do
   echo "  Ralph iteration $i/$MAX_ITERATIONS ($BACKEND)"
   echo "==============================================================="
 
+  # clean stop: a supervisor drops scripts/ralph/.halt to stop the loop
+  # gracefully. Respect it between iterations (and the heartbeat won't
+  # relaunch once it sees it), so a human stop can't be overridden.
+  if [ -f "$HALT_FILE" ]; then
+    echo ""
+    echo "Ralph halted by $HALT_FILE at iteration $i. See $PROGRESS_FILE."
+    exit 1
+  fi
+
   # snapshot passes before the iteration so we can verify exactly one
   # story flipped false->true afterwards (corruption guard).
   SNAPSHOT="$(jq -c '[.userStories[] | {id, passes}]' "$PRD_FILE" 2>/dev/null || true)"
@@ -115,12 +134,10 @@ for i in $(seq 1 "$MAX_ITERATIONS"); do
   wait "$ITER_PID" || true
   rm -f "$ITER_PID_FILE"
 
-  # strip ANSI from the log tail and look for the completion marker
-  CLEANED=$(tail -c 20000 "$LOG_FILE" 2>/dev/null | sed $'s/\033\[[0-9;]*[a-zA-Z]//g')
-  if printf '%s' "$CLEANED" | grep -q "<promise>COMPLETE</promise>"; then
-    echo ""
-    echo "Ralph completed all stories. Finished at iteration $i."
-    exit 0
+  # bound ralph.log growth: keep the tail (run records/prd.json/progress.txt
+  # already hold durable memory; the log is a liveness + read-back window).
+  if [ -f "$LOG_FILE" ] && [ "$(wc -c < "$LOG_FILE" 2>/dev/null || echo 0)" -gt 2000000 ]; then
+    tail -c 1500000 "$LOG_FILE" > "$LOG_FILE.tmp" 2>/dev/null && mv "$LOG_FILE.tmp" "$LOG_FILE" || rm -f "$LOG_FILE.tmp"
   fi
 
   # integrity + progress echo: supervision (human or agent) relies on the

@@ -1,16 +1,17 @@
 # builder
 
-End-to-end idea → production-ready app orchestrator for [opencode](https://opencode.ai).
+End-to-end idea → production-ready app orchestrator that runs hands-free on any headless agent backend ([opencode](https://opencode.ai), [Claude Code](https://claude.ai/code), or [Codex](https://openai.com/codex)).
 
 ## What it does
 
 Given a one-line app idea, `builder` runs the full hands-free pipeline:
 
-1. **Prerequisites** — verifies `opencode`/`jq`/`git`/`npx`/`docker` are
+1. **Prerequisites** — verifies the detected headless agent CLI
+   (`opencode`/`claude`/`codex`), plus `jq`/`git`/`npx`/`docker`, are
    present, the Docker daemon is up, auth/AI-gateway are healthy, no other
    run targets the same project, and enough disk is free.
 2. **Dependency install** — checks/installs ~35 required skills across
-   three search roots, non-interactively, with a verification bar for
+   all supported skill roots, non-interactively, with a verification bar for
    any unrecorded source.
 3. **Phase 0** — runs `vibe-evolve` (cadence-gated toolchain refresh).
 4. **Phase 1** — briefs the idea via `prompt-architect`, then runs
