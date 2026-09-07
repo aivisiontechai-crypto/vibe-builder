@@ -73,7 +73,11 @@ jq -e '.project and .branchName and (.userStories | length > 0)' "$PRD_FILE" >/d
 # pid file with a dead PID is reclaimed; a live PID means an active loop.
 if [ -f "$PID_FILE" ]; then
   OLD_PID="$(cat "$PID_FILE" 2>/dev/null || true)"
-  if [ -n "$OLD_PID" ] && kill -0 "$OLD_PID" 2>/dev/null; then
+  # use `ps -p` (existence-only) rather than `kill -0` (signal-permission
+  # gated) — kill -0 falsely reports "not running" for a live pid owned by
+  # another user (EPERM), which would let a second loop start and corrupt
+  # prd.json.
+  if [ -n "$OLD_PID" ] && ps -p "$OLD_PID" >/dev/null 2>&1; then
     echo "another ralph driver is already running for $PROJECT_ROOT (pid $OLD_PID) — refusing to start a second loop."
     exit 1
   fi
@@ -158,20 +162,21 @@ for i in $(seq 1 "$MAX_ITERATIONS"); do
     exit 0
   fi
 
-  # post-iteration integrity check: while stories remain, an iteration must
-  # flip exactly one story false->true and nothing else (no true->false
-  # back-flips, no stories added/removed). Anything else means a corrupted
-  # prd.json — restore from git before relaunching, never trust it.
+  # post-iteration integrity check: while stories remain, an iteration may
+  # flip one or more stories false->true (a coupled pair landing together is
+  # legitimate) and may even revert a story true->false if a regression was
+  # discovered — only a structural change (stories added/removed, or ids
+  # changing) means a corrupted prd.json — restore from git before
+  # relaunching, never trust it. A no-op iteration (0 flips) is NOT
+  # corruption by itself; the stall detector below handles lack of progress.
   if [ -n "$NEW_SNAPSHOT" ] && [ -n "$SNAPSHOT" ]; then
     CORRUPT="$(jq -n --argjson b "$SNAPSHOT" --argjson a "$NEW_SNAPSHOT" '
-      [$b[] | select(.passes==false)] | length as $ob |
-      [$a[] | select(.passes==false)] | length as $oa |
-      [$b[] | select(.passes==true )] | length as $tb |
-      [$a[] | select(.passes==true )] | length as $ta |
-      if ($b|length) != ($a|length) or (($ob-$oa) != 1) or (($ta-$tb) != 1) then "bad" else "" end' 2>/dev/null || true)"
+      ($b | map(.id) | sort) as $bids |
+      ($a | map(.id) | sort) as $aids |
+      if ($b|length) != ($a|length) or $bids != $aids then "bad" else "" end' 2>/dev/null || true)"
     if [ "$CORRUPT" = "bad" ]; then
       echo ""
-      echo "!! iteration $i changed prd.json wrongly (expected exactly one false->true flip)"
+      echo "!! iteration $i changed prd.json's story set (added/removed/renamed ids)"
       echo "   Fix/restore prd.json — stop and inspect $PROGRESS_FILE, fix the story, relaunch."
       exit 1
     fi

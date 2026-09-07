@@ -64,6 +64,15 @@ blunt, decisive, secure, zero mock data, zero questions asked.
   are committed before the next starts (atomic commits, Conventional
   Commits), boring over clever, single source of truth, think-twice-
   code-once.
+- **YAGNI discipline** (pattern reference: `DietrichGebert/ponytail`,
+  "the best code is the code you never wrote"): before adding any
+  abstraction, config flag, generalized helper, extra layer, or
+  speculative extension point, check it against the CURRENT story's
+  actual acceptance criteria in `prd.json`. If nothing there requires it,
+  don't write it — ship the narrower concrete implementation instead. This
+  is a hard constraint, not a style preference: unrequested generalization
+  is scope creep that burns iterations and widens the surface the
+  security/design audits (§6, §6b) must cover.
 
 ## 1. Input
 
@@ -76,6 +85,15 @@ blunt, decisive, secure, zero mock data, zero questions asked.
   `docs/` + `prd.json`, then build.
 
 ## 2. Stack (decisive default — deviate only for a hard technical reason)
+
+**Platform check first**: read `docs/DECISIONS.md`/`docs/ARCHITECTURE.md`
+for the Platform & stack decision vibe-docs recorded (`web`, `mobile`, or
+`web+mobile`). Everything below is the **web** default. For a `mobile` or
+`web+mobile` target, also apply `docs/DESIGN.md`'s mobile stack section
+(Expo/React Native, EAS, `expo-secure-store` auth, Detox/Maestro e2e) —
+load `vercel-react-native-skills` before writing any native screen. A
+`web+mobile` project keeps ONE backend (the Next.js API below); the native
+client is a consumer of it, never a second backend implementation.
 
 - **App**: Next.js (App Router) + strict TypeScript.
 - **UI**: Tailwind CSS v4 + shadcn/ui, tokens from `docs/DESIGN.md`.
@@ -489,6 +507,34 @@ small story from `prd.json`. Memory between iterations = git history,
 context drift. The full product is built this way — nothing is MVP-cut,
 everything is ordered by story priority across the whole scope.
 
+### Project graph context step (pattern reference: `Graphify`)
+Before the FIRST iteration, and again whenever `progress.txt` shows 10+
+completed stories since the last refresh, write/update
+`scripts/ralph/PROJECT-GRAPH.md`: a flat dependency map of
+module → depends-on → module, derived from actual imports in `src/`
+(read the tree, don't invent edges). Each ralph iteration's prompt context
+includes this file alongside `AGENTS.md` so a fresh headless instance
+gets graph-shaped project memory (what depends on what) instead of only
+linear `progress.txt` history. This is a plain markdown artifact generated
+by grep/read of the real source tree — no external graph database, no
+`Graphify` package or runtime dependency.
+
+### Specialist delegation mode (pattern reference: `agency-agents`)
+Default is single-agent-per-story (above). For a story explicitly tagged
+`"specialistTrack"` in `prd.json` (e.g. a security-hardening pass, a
+Strix pentest remediation batch, or a design-audit pass — see the
+mandatory final story in vibe-docs §3), run it as a **delegation**
+instead of a generic implementation iteration: the iteration prompt
+names the specific specialist mandate (security-and-hardening reviewer,
+impeccable design auditor, performance-optimization reviewer) explicitly,
+scoped to only its story's acceptance criteria, rather than the generic
+"implement this story" prompt. This keeps the existing single-process
+ralph runner (no new orchestrator process, no multi-process coordination)
+but sharpens the per-iteration prompt the way a delegated-specialist
+system would, instead of one monolithic generic-agent prompt for every
+story regardless of its nature.
+
+
 1. **Install the driver into the project** (once). Resolve the source in
    this order — never fail the whole build just because one machine
    hasn't got the driver pre-installed:
@@ -505,7 +551,7 @@ everything is ordered by story priority across the whole scope.
    mkdir -p scripts/ralph
    cp -r "$HOME/.agents/ralph/scripts/ralph/." scripts/ralph/ 2>/dev/null \
      || cp -r "<vibe-build-skill>/ralph/." scripts/ralph/
-  chmod +x scripts/ralph/ralph-driver.sh scripts/ralph/ralph-iteration.sh scripts/ralph/ralph-heartbeat.sh
+  chmod +x scripts/ralph/ralph-driver.sh scripts/ralph/ralph-iteration.sh scripts/ralph/ralph-heartbeat.sh scripts/ralph/ralph-runner.mjs scripts/ralph/ralph-heartbeat.mjs scripts/ralph/ralph-runner-parallel.mjs
    ```
   The canonical OS-agnostic entry point is `node
   scripts/ralph/ralph-runner.mjs 200`. It uses Node's process and filesystem
@@ -546,7 +592,7 @@ everything is ordered by story priority across the whole scope.
       `scripts/ralph/.halt`,
       `scripts/ralph/archive/`, `scripts/ralph/.admin-credentials`,
       `.ralph-sessions.log`,
-      `.env`, `.env.*`, `node_modules`, `.next`; TRACK `prd.json`,
+      `.env`, `.env.*`, `!.env.example`, `node_modules`, `.next`; TRACK `prd.json`,
       `progress.txt`, and `scripts/ralph/` (driver + iteration + heartbeat
       + RALPH.md) so the build's memory, task list, and watcher travel
       with the repo.
@@ -560,6 +606,11 @@ everything is ordered by story priority across the whole scope.
       complete commented `.env.example` mirroring `prd.json.envVars`
       var-for-var as its FIRST deliverable, before any integration code
       exists to read from it.
+   - Set `RALPH_COMPLETION_GATE_CMD` to the project's final executable gate
+     (for example, `npm run lint && npm test && npm run build`) before a
+     production run. The runner will not write `DONE` when this command
+     fails. Keep the command in the project runbook so a resumed run uses
+     the same evidence contract.
    - Local real DB is running: `docker compose up -d postgres` (or the
      compose DB service) and wait until healthy — this needs NO account,
      so the data tier is genuinely hands-free.
@@ -595,9 +646,23 @@ everything is ordered by story priority across the whole scope.
    ```bash
   node scripts/ralph/ralph-runner.mjs 200
    ```
-  The Node runner is model/token-free supervision around each iteration and
-  writes `heartbeat.state` as `RUNNING`, `DONE`, or `FAILED`. The legacy
-  heartbeat is pure shell and watches
+  The Node runner is model/token-free supervision around each iteration
+  (including its own in-process idle watchdog — kills a silent-but-alive
+  iteration after `RALPH_IDLE_TTL_MS`, default 15 min) and
+  writes `heartbeat.state` as `RUNNING`, `DONE`, or `FAILED`. That covers a
+  HUNG iteration, but not the runner process itself dying (crash, OOM-kill,
+  an unhandled rejection outside its own try/finally) — for that, ALSO
+  launch `ralph-heartbeat.mjs` (same host-OS backgrounding as above:
+  `Start-Process node -ArgumentList 'scripts/ralph/ralph-heartbeat.mjs'` on
+  PowerShell, `nohup node scripts/ralph/ralph-heartbeat.mjs >>
+  scripts/ralph/ralph.log 2>&1 &` on POSIX). It is the cross-platform,
+  external supervisor: polls `.ralph.pid`, relaunches a dead runner (up to
+  `RALPH_HEARTBEAT_MAX_RELAUNCH`, default 6), and exits once every story
+  passes or the relaunch cap is hit — the Node-runner equivalent of the
+  legacy shell heartbeat below, so Windows/cross-platform builds get the
+  same relaunch-on-death guarantee POSIX builds always had. The legacy
+  heartbeat (`ralph-heartbeat.sh`) is pure shell and performs the same job
+  for the `.sh` driver specifically: it watches
    `.ralph.pid`/`.iteration.pid` + `ralph.log` growth and self-heals the
    loop — kills an iteration idle > HEARTBEAT_IDLE_TTL (default 15 min),
    relaunches a dead driver (up to HEARTBEAT_MAX_RELAUNCH=6), and exits 0
@@ -634,6 +699,34 @@ everything is ordered by story priority across the whole scope.
    (both also clean up the sentinel). Use this before fixing a stall, then
    relaunch with the same command (`.backend` is already recorded, so the
    same backend is reused).
+   **Experimental — parallel/swarm mode** (`ralph-runner-parallel.mjs`, opt-in,
+   NOT the default): implements multiple independent stories concurrently,
+   each in its own `git worktree`, then merges them back one at a time.
+   Only reach for this when the backlog has genuinely independent stories
+   left (no shared-file contention) and the sequential loop's throughput is
+   the actual bottleneck — for most builds the sequential runner above is
+   simpler, safer, and the recommended path. To use it:
+   - Add an optional `dependsOn: ["US-00X", ...]` array to stories in
+     `prd.json` that must land before a given story starts (omit or `[]` if
+     independent). Stories touching the same schema/shared component/auth
+     layer should depend on whichever lands first, or simply be left off
+     the parallel batch by ordering — this script has no file-level
+     conflict prediction, only your `dependsOn` graph.
+   - `node scripts/ralph/ralph-runner-parallel.mjs 50` (arg = max rounds,
+     not iterations — one round implements up to `RALPH_MAX_PARALLEL`
+     stories at once, default 3, override via env).
+   - Each round's workers are told never to touch `prd.json`; only the
+     supervisor flips `passes: true`, and only after that story's branch
+     merges cleanly into the working branch AND an optional
+     `RALPH_MERGE_GATE_CMD` (e.g. `"npm run build && npm test"`) passes —
+     a merge conflict or failed gate reverts that story's merge and leaves
+     its worktree/branch (`ralph/story-<id>`) in place for manual
+     resolution instead of silently discarding work.
+   - This mode does not use the legacy `.sh`/`.mjs` heartbeat (it has no
+     single `.iteration.pid` to watch); it writes its own
+     `heartbeat.state` (`RUNNING`/`DONE`/`FAILED`) and stops itself outright
+     on a round with zero successful merges rather than looping on the
+     same conflict.
    If ~3 consecutive iterations flip no `passes: false → true`, pause/kill
    the loop, diagnose the SHAPE of the stall before relaunching:
    - **Repeated identical provider errors (5xx/timeout) in `ralph.log`**:
@@ -1049,6 +1142,14 @@ gateway like OmniRoute when one is actually running; otherwise reuse the
 backend's own provider credentials) — never hardcode a specific gateway
 URL that may not exist on this machine.
 
+**Mobile/web+mobile target**: Strix scans the network-reachable surface,
+which for a `web+mobile` product is the SAME Next.js API the native client
+consumes — point it at the API origin exactly as above; there is nothing
+additional to scan on the native binary itself over the network. The
+native-client-specific risks (insecure local storage, certificate
+pinning, deep-link/intent handling) are NOT covered by this gate — they
+are checked explicitly in section 6c's mobile checklist items instead.
+
 ## 6c. Final checklist validation pass (run before reporting shipped)
 
 Section 6/6a2-6a6 describe what to build. This is the separate,
@@ -1059,6 +1160,13 @@ earlier in the loop; re-verify it now, at the end, in one pass, since
 later stories can silently regress an earlier control. Any unchecked item
 blocks "shipped" — fix it or explicitly report it as a known gap, never
 report a silent pass.
+
+**Platform check first**: read `docs/DECISIONS.md`/`docs/ARCHITECTURE.md`'s
+recorded Platform & stack decision. Every item below applies to the web
+surface regardless of platform. If the decision is `mobile` or
+`web+mobile`, ALSO complete the **Mobile-specific** block near the end of
+this list — do not report shipped on a mobile/web+mobile build with only
+the web items checked.
 
 - [ ] Auth: password hashing (Argon2/bcrypt), session cookie flags
   (httpOnly+Secure+SameSite), CSRF protection — verified by reading the
@@ -1194,8 +1302,54 @@ report a silent pass.
   final layout dimensions (no visible CLS on data arrival); each route
   segment's `error.tsx` boundary was actually triggered once (e.g. a
   forced throw) and shown to recover via retry, not just reviewed as code.
+- [ ] **Mobile-specific (skip entirely for a `web`-only target; required
+  for `mobile`/`web+mobile`)**:
+  - [ ] EAS Build actually succeeds for both platforms targeted
+    (`eas build --platform all --profile production` or the configured
+    profile) — verified by the build finishing, not by the config
+    existing; a failing native build blocks shipped exactly like a
+    failing `npm run build`.
+  - [ ] Auth tokens are stored via `expo-secure-store` (Keychain/Keystore
+    backed), never `AsyncStorage`/plain storage — grep for
+    `AsyncStorage` anywhere a token/session/credential is touched; must
+    be empty.
+  - [ ] Native e2e (Detox or Maestro, per `docs/DESIGN.md`'s choice) has
+    a real passing run against a simulator/emulator or a real device
+    covering the core auth + primary flow, not just a config file —
+    check the run's actual pass/fail output.
+  - [ ] Deep links / universal links (if any) tested with a real link
+    open, not just registered in the manifest; any link carrying an
+    auth/action token is single-use and expires like its web equivalent.
+  - [ ] Certificate/TLS pinning (if configured) doesn't break on a real
+    request against the production-equivalent API origin — test one
+    real network call from the built app, not the simulator's relaxed
+    TLS defaults.
+  - [ ] Push notifications (if any): a real token registers with the
+    provider (FCM/APNs) and a test notification is actually received on
+    a simulator/device, not just wired in code.
+  - [ ] Store listing requirements from `docs/DEPLOYMENT.md` (privacy
+    manifest/App Tracking Transparency copy for iOS, Data Safety form
+    fields for Android, required screenshots/icons) are complete —
+    verified against the actual EAS Submit dry run or store console, not
+    assumed from the doc.
+  - [ ] The native client has zero duplicated backend logic — spot-check
+    that a core mutation (e.g. checkout, auth) calls the SAME API route
+    the web client calls, not a second parallel implementation.
 
 ## 7. Definition of done
+
+### Post-ship operation mode (pattern reference: `OpenViking`)
+Once every gate below is green, the loop does not simply stop cold. Write
+`docs/OPERATIONS.md`: a short runbook covering (1) how to trigger a
+follow-up ralph run against a NEW `prd.json` for post-launch stories
+(bugfixes, iteration requests) without re-running vibe-docs from scratch,
+(2) where `progress.txt`/`ralph.log` live for diagnosing the last run,
+(3) the halt/resume contract (`scripts/ralph/.halt`) for a supervisor to
+pause and later restart the build-operate loop. This turns "app
+generation" into "app generation + a documented path to keep operating
+the loop," without adding an actual autonomous agent that runs unsupervised
+in production — that would be a distinct, explicitly-opted-into system,
+not an implicit default.
 
 - Ralph loop exited 0: every story in `prd.json` is `passes: true`
   (`jq -r '.userStories[] | select(.passes == false) | .id' prd.json`

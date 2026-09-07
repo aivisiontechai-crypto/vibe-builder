@@ -41,7 +41,11 @@ From the one-liner, derive and commit to:
 | Core features | The 3–7 highest-priority capabilities the product MUST ship. Rank them. |
 | User roles & permissions | Every distinct role (e.g. admin/owner/member/guest) and exactly what each can view/create/edit/delete — spec this even for a single-role app ("user" + implicit "admin"). |
 | Out of scope | What you explicitly refuse to build (v1). |
-| Platform & stack | Web-first unless there is a hard reason not to. |
+| Platform & stack | Web-first unless the idea explicitly requires a native mobile
+  experience (offline-first, camera/GPS/push/biometrics, app-store
+  distribution) — decide `web`, `mobile`, or `web+mobile` HERE, decisively,
+  and record which in `DECISIONS.md`; do not leave it implicit for
+  `vibe-build` to guess. |
 | Monetization | Freemium unless the domain says otherwise. |
 | Success metrics | Numbers for launch week, quarter 1, year 1 (activation, retention, revenue). |
 
@@ -78,6 +82,31 @@ objectively wrong, then record the deviation:
 - **Every product ships an embedded AI chatbot AND at least one AI-assisted
   feature** (summaries, search, generation, classification…); they are core
   scope, not optional modules. The AI key stays env-gated per the env
+
+### 2a. Mobile stack (only when Platform & stack above resolved to `mobile`
+or `web+mobile` — skip entirely for web-only products)
+
+- **App**: Expo (React Native) + TypeScript (strict), Expo Router for
+  navigation. The Next.js Route Handlers above remain the ONE backend —
+  the mobile client is a consumer of the same API/Zod contracts, never a
+  second backend. Load `vercel-react-native-skills` for list-performance,
+  animation, and native-module patterns before writing screens.
+- **Auth on mobile**: same Auth.js-issued sessions via a token-based flow
+  (short-lived JWT/refresh pair over HTTPS, stored in `expo-secure-store`,
+  never `AsyncStorage` for secrets) — httpOnly cookies do not work in a
+  native WebView-less RN client, so this is a deliberate, documented
+  deviation from the web auth transport, not a weaker auth model.
+- **Distribution**: EAS Build + EAS Submit for store builds; Expo Go /
+  a dev client for local iteration. Record store-listing requirements
+  (privacy policy URL, permissions usage strings, app icons/splash) in
+  `docs/DEPLOYMENT.md` — app-store review is a real gate, not optional.
+- **Testing**: same Vitest for shared/business logic; native e2e via
+  Detox or Maestro (record the choice in `DECISIONS.md`) in place of
+  Playwright for the mobile client — Playwright does not drive a native
+  app.
+- **`web+mobile`**: `prd.json` stories are split per-platform where the
+  UI diverges (shared API/data-model stories land once) so ralph doesn't
+  conflate a web-only story with a native-client one.
   contract.
 
 This default is PRODUCTION-shaped, not demo-shaped. Doc it as such.
@@ -185,6 +214,21 @@ it), and ALWAYS a final story: "Run impeccable/design-taste-frontend design
    rules so the design is not AI-slop.
 4. Pick a brand reference from the installed design collections for
    direction, write an original system.
+5. **Content/storytelling pass** (pattern reference: `instatic` for
+   static/editorial publishing structure) — applies whenever the product
+   has a marketing site, blog/content hub, or narrative landing page:
+   write `DESIGN.md`'s content section as a real information architecture
+   (hero narrative arc, section-by-section story beats, content hierarchy
+   for long-form/editorial pages) instead of a flat wireframe list. This
+   is a documentation step, not an installed dependency — no package add,
+   no runtime code from the repo.
+6. **Workspace/app-shell pass** — applies whenever the product is a
+   dashboard, internal tool, or multi-surface app shell: record the
+   shell's navigation model (sidebar/command-palette/workspace-switcher
+   conventions) in `DESIGN.md` so vibe-build scaffolds one consistent
+   shell instead of ad-hoc per-page layouts. (Not attributed to `skylos`
+   — corrected 2026-09-07: that repo is a PR dead-code/security scanner,
+   unrelated to workspace UX; this step stands on its own merit.)
 
 ## 4. Definition of done (docs phase)
 
