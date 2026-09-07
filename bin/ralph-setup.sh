@@ -19,7 +19,7 @@ TARGET_ROOT="${1:-$HOME/.agents/ralph/scripts/ralph}"
 
 [ -d "$SOURCE_ROOT" ] || { echo "bundled ralph driver not found at $SOURCE_ROOT"; exit 1; }
 
-DRIVER_FILES="ralph-driver.sh ralph-iteration.sh ralph-heartbeat.sh ralph-runner.mjs RALPH.md"
+DRIVER_FILES="ralph-driver.sh ralph-iteration.sh ralph-heartbeat.sh ralph-runner.mjs ralph-heartbeat.mjs ralph-runner-parallel.mjs RALPH.md"
 
 echo "Installing ralph driver -> $TARGET_ROOT"
 mkdir -p "$TARGET_ROOT"
@@ -33,7 +33,10 @@ done
 
 chmod +x "$TARGET_ROOT/ralph-driver.sh" \
          "$TARGET_ROOT/ralph-iteration.sh" \
-         "$TARGET_ROOT/ralph-heartbeat.sh" 2>/dev/null || true
+         "$TARGET_ROOT/ralph-heartbeat.sh" \
+         "$TARGET_ROOT/ralph-runner.mjs" \
+         "$TARGET_ROOT/ralph-heartbeat.mjs" \
+         "$TARGET_ROOT/ralph-runner-parallel.mjs" 2>/dev/null || true
 
 echo ""
 echo "Done. Driver installed to: $TARGET_ROOT"

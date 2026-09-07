@@ -70,16 +70,28 @@ while :; do
     exit 0
   fi
   if [ "$OPEN" -eq 0 ]; then
-    log_state "DONE all stories pass"
-    exit 0
+    STATE="$(tail -1 "$STATE_FILE" 2>/dev/null || true)"
+    if [ "$STATE" = "DONE" ]; then
+      log_state "DONE all stories pass and completion gate passed"
+      exit 0
+    fi
+    if [ "$STATE" = "FAILED" ]; then
+      log_state "FAILED completion gate or driver failed after stories passed"
+      exit 1
+    fi
+    log_state "WAITING all stories pass but driver has not completed its final gate"
   fi
 
   LPID="$(cat "$PID_FILE" 2>/dev/null || true)"
   IPID="$(cat "$ITER_PID_FILE" 2>/dev/null || true)"
 
-  if [ -n "$LPID" ] && kill -0 "$LPID" 2>/dev/null; then
+  # use `ps -p` (existence-only) rather than `kill -0` (signal-permission
+  # gated) — kill -0 falsely reports "not running" for a live pid owned by
+  # another user (EPERM), which would make the heartbeat wrongly relaunch
+  # a driver that is actually still alive.
+  if [ -n "$LPID" ] && ps -p "$LPID" >/dev/null 2>&1; then
     # driver alive: classify the current iteration
-    if [ -n "$IPID" ] && kill -0 "$IPID" 2>/dev/null; then
+    if [ -n "$IPID" ] && ps -p "$IPID" >/dev/null 2>&1; then
       SIZE="$(log_size)"
       NOW="$(date +%s)"
       if [ "$SIZE" != "$LAST_SIZE" ]; then

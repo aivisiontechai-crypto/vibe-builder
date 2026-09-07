@@ -29,6 +29,16 @@ path (see Project/boundary rules), not a rebuild.
 
 ## Prerequisites (verify before Phase 0 — fail fast, not hours in)
 
+- **Run the bundled preflight check first**: `node ./bin/ralph-check.mjs`
+  (or PowerShell equivalent). This catches missing runtime tools and a dead
+  or unauthenticated backend before the build starts. A failed preflight is
+  a hard stop, not a warning, because a multi-hour builder run is wasted if
+  the environment is not healthy at minute 0.
+- **Run the bundled no-placeholder guard before shipping**: `node
+  ./bin/ralph-guard.mjs` (or PowerShell equivalent). This fails fast on
+  `TODO`, `FIXME`, `TBD`, `jsonplaceholder`, `lorem ipsum`, `example.com`,
+  and similar fake-data markers so the build cannot silently ship cocked-up
+  placeholder content disguised as production work.
 - **Binaries on PATH**: `jq`, `git`, `npx`, `docker` (local Postgres +
   the Strix sandbox both need it), plus AT LEAST ONE headless-capable
   build-agent CLI (see "Headless build-agent backend" below — `opencode`
@@ -38,11 +48,14 @@ path (see Project/boundary rules), not a rebuild.
   Debian/Ubuntu → `apt`, other Linux → name the distro's own manager,
   never assume `brew` on Linux) — never start a multi-hour run destined
   to fail on a missing tool.
-- **Shell runtime**: the bundled ralph driver is POSIX Bash, not PowerShell.
-  On Windows, verify `bash` from Git for Windows or WSL is available and run
-  the driver and setup script inside that shell. Do not paste `nohup`,
-  `flock`, `chmod`, `kill`, or `lsof` commands into PowerShell. If Bash is
-  absent, stop with the exact prerequisite instead of starting a partial run.
+- **Shell runtime**: the project prefers the cross-platform Node runner and
+  the bundled `bin/ralph-setup.mjs` installer. The legacy `.sh` scripts
+  remain available for POSIX shells, but they are not required on Windows.
+  On Windows, use the Node-based runner or the PowerShell wrapper; if you
+  opt into the legacy Bash path, use `bash` from Git for Windows or WSL.
+  Do not paste `nohup`, `flock`, `chmod`, `kill`, or `lsof` commands into
+  PowerShell unless you are deliberately running the legacy POSIX script in
+  a Bash environment.
 - **Headless build-agent backend (auto-detected, agent-agnostic)**: the
   ralph loop (Phase 2) needs ONE CLI capable of a non-interactive,
   tool-using run. Detect in this preference order and use the FIRST one
@@ -147,7 +160,61 @@ Required skills: `prompt-architect`, `find-skills`,
 `constraint-driven-development`, `doubt-driven-development`,
 `spec-driven-development`, `idea-refine`, `planning-and-task-breakdown`,
 `documentation-and-adrs`, `source-driven-development`,
-`vercel-optimize`, `vercel-react-view-transitions`.
+`vercel-optimize`, `vercel-react-view-transitions`, `grilling`, `grill-me`.
+
+**Reference-pattern integrations (wired into concrete steps, not
+installed dependencies)**: none of `agency-agents`, `ecc`, `Graphify`,
+`skylos`, `instatic`, `ponytail`, `rtk`, `OpenViking` are installable
+skills or verified packages — none are added via `npx skills add` and
+none contribute runtime code. Each entry below was checked against its
+real GitHub repo on 2026-09-07; three original descriptions were wrong
+and are corrected here (`ecc`, `skylos`, and `ponytail` — see
+`LEDGER.md` for what each was originally misdescribed as). `instatic`,
+`rtk`, and `OpenViking` remain unverified pending a repeat GitHub lookup
+(rate-limited mid-audit) — treat their pattern descriptions as
+lower-confidence until confirmed:
+- `agency-agents` (msitarzewski/agency-agents — persona-based specialist
+  agent roster) → specialist delegation pattern, applied in vibe-build
+  §4 ("Specialist delegation mode").
+- `Graphify` (Graphify-Labs/graphify — real installable graph-intelligence
+  CLI+skill, verified) → graph-first project memory pattern, applied in
+  vibe-build §4 ("Project graph context step").
+- `ecc` (affaan-m/ECC — agent-harness performance/skills/memory/security
+  optimizer for Claude Code, NOT a multi-role coordination system) →
+  applied as a reference for hardening the ralph runner's own
+  agent-facing config (`AGENTS.md`, prompt discipline), not as part of
+  the specialist-delegation pattern above.
+- `skylos` (duriantaco/skylos — local-first PR scanner for dead code,
+  security bugs, secrets, and quality regressions, NOT a workspace/UX
+  pattern) → applied as a pre-merge quality-gate reference alongside
+  vibe-build's existing lint/typecheck/SCA gates (§6), not in the design
+  ritual.
+- `instatic` (real plugin ecosystem confirmed via
+  github.com/topics/instatic — SEO, pagination, video embeds, site
+  search for a static-site CMS) → editorial/static-content publishing
+  structure, applied in vibe-docs' design ritual step 5.
+- `rtk` (confirmed 2026-09-07 — a token/context-compression plugin
+  family for coding agents, e.g. "transparent token compression for
+  Claude Code via RTK", NOT a runtime/production-workflow-control
+  pattern) → not attributed to any step; the ralph runner's self-heal
+  contract stands on its own, no external pattern needed.
+- `OpenViking` → post-ship autonomous operation pattern (STILL
+  UNVERIFIED after 3 lookup attempts across GitHub and Google, both
+  blocked — pattern applied in vibe-build §7 "Post-ship operation mode"
+  on its own merit, not on confirmed attribution).
+- `ponytail` → YAGNI/anti-over-engineering discipline pattern (real repo:
+  `DietrichGebert/ponytail` — "the best code is the code you never
+  wrote"), applied as a standing constraint in vibe-build §0 operating
+  rules: before adding any abstraction, config option, or generalized
+  helper not required by an actual `prd.json` story, stop and ship the
+  narrower concrete implementation instead.
+
+**Conditional — mobile target only**: if `docs/ARCHITECTURE.md` (produced
+by Phase 1) records the platform decision as `mobile` or `web+mobile`,
+also require `vercel-react-native-skills` (React Native/Expo performance
+and native-module patterns) before Phase 2 starts — installed the same
+way as every other Required skill, never assumed present. Web-only
+projects never need it; do not install it speculatively.
 
 1. **Check** each name against all five search roots for a directory with
    a valid `SKILL.md` (`name:` + `description:` frontmatter present).
@@ -165,6 +232,8 @@ Required skills: `prompt-architect`, `find-skills`,
    `getsentry/skills@security-review`, `usestrix/strix@owasp-top-10-testing`,
    `wshobson/agents@sast-configuration`, `wshobson/agents@nodejs-backend-patterns`,
    `grafana/skills@k6`,
+   `vercel-labs/agent-skills@vercel-react-native-skills` (mobile-target
+   projects only),
    `addyosmani/web-quality-skills@seo`,
    `resend/email-best-practices@email-best-practices`, `resend/react-email@react-email`,
    `usestrix/strix` for the
@@ -223,7 +292,37 @@ Required skills: `prompt-architect`, `find-skills`,
    First persist it: write the brief to `<target>/BRIEF.md` — the framework
    used and the research dimensions (audience, context, objective,
    measurable success, constraints) — so vibe-docs and every ralph
-   iteration cite the same source. Then feed that brief into `vibe-docs`
+   iteration cite the same source.
+   - **Self-answered grilling pass (hands-free design-tree stress-test):**
+     before handing the brief to `vibe-docs`, call the Skill tool for
+     `grilling` (the primitive behind `grill-me`) against the brief —
+     same design-tree/rounds/frontier discipline the skill normally runs
+     as a human interview, but here YOU answer every round yourself
+     instead of waiting on the user; `grill-me`/`grilling` are
+     `disable-model-invocation: true` (never auto-fire on their own),
+     which is exactly why this step calls them explicitly rather than
+     relying on implicit invocation. For each frontier question: if it's
+     a FACT the environment can settle (a library's real capability, a
+     provider's actual API shape, a competitor's real pricing model),
+     dispatch research to answer it — `source-driven-development` for
+     framework/library facts, a web fetch for external facts — never
+     guess at something checkable. If it's a genuine JUDGMENT CALL (no
+     external fact resolves it — tone, feature priority, which of two
+     valid architectures), decide it yourself using the same authority
+     Phase 1's framework dimensions already use, and record the decision
+     plus the one-line rationale in `BRIEF.md` right beside the resolved
+     question — never leave a round's answer implicit. Work the frontier
+     to completion (empty frontier = done); do NOT stop early just because
+     a question was hard — an unresolved branch here becomes a silent
+     wrong assumption baked into every downstream doc. This is a single
+     pass, not a back-and-forth: because there's no user to answer, there
+     is no multi-round wait — resolve the whole tree in one continuous
+     pass before moving on. Append the resolved design tree (every
+     question, its answer, fact vs. judgment-call, and rationale) to
+     `BRIEF.md` under a `## Grilling` heading so `vibe-docs` inherits the
+     sharpened brief instead of the raw idea, and so `docs/DECISIONS.md`
+     later cites the same resolved tree rather than re-deriving it.
+   Then feed that brief into `vibe-docs`
    as the idea. The user's idea goes in; a
    complete `docs/` package comes out (BRD, PRD,
    ARCHITECTURE, DATA_MODEL, API_SPEC, DESIGN.md, SECURITY, TEST_PLAN,

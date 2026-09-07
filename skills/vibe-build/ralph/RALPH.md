@@ -39,17 +39,23 @@ real fullstack application, hands-free. Everything you need lives on disk.
    `npm run build`, and `npx playwright test` when e2e tests exist. If a
    listed command doesn't exist in this project, skip it and say so in
    progress.txt — never invent gates the project can't pass.
+   When the supervisor provides `RALPH_COMPLETION_GATE_CMD`, treat its
+   successful exit as an additional required final check; do not mark the
+   last story complete while that gate is failing.
 4. If the story touches UI, verify it in a real browser with the
    **agent-browser** skill (navigate, interact, screenshot). If no browser
    tool is available, say so in the progress log.
 5. Before committing, update AGENTS.md files with any reusable learnings
    (patterns, gotchas, conventions) — story-specific details go in
    progress.txt, not AGENTS.md.
-6. Only if every check passes: commit ALL changes in ONE commit — your
-   code, your `prd.json` passes flip, your `progress.txt` entry, and any
-   AGENTS.md edits — with message `feat: [Story ID] - [Story Title]`. This
-   keeps ralph's memory (libs, passes, learnings) IN git history where a
-   clone or `git reset --hard` can't destroy it. If `git config
+6. Only if every check passes: commit the story-owned changes in ONE commit
+   — code, your `prd.json` passes flip, your `progress.txt` entry, and any
+   AGENTS.md edits — with message `feat: [Story ID] - [Story Title]`. Stage
+   named story files explicitly; never use `git add -A` or `git add .`, and
+   never include unrelated pre-existing worktree changes. If unrelated
+   changes are present, stop and record a stall instead of committing them.
+   This keeps ralph's memory (libs, passes, learnings) IN git history where
+   a clone or `git reset --hard` can't destroy it. If `git config
    user.name/email` is unset, set repo-local identity first (e.g.
    `ralph-agent <ralph@local>`) — never `--amend` a failure.
 7. Set `passes: true` for the story in `prd.json`.

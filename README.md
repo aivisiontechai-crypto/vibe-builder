@@ -75,6 +75,38 @@ cp -r skills/vibe-evolve ~/.config/opencode/skills/
 cp -r commands ~/.config/opencode/commands/
 ```
 
+## Preflight validation
+
+Before a full hands-free run, validate the dependency stack once:
+
+```bash
+node ./bin/ralph-check.mjs
+```
+
+```powershell
+node .\bin\ralph-check.mjs
+```
+
+This checks the required toolchain (`node`, `git`, `jq`, `docker`), a working
+headless AI backend (`opencode`, `claude`, or `codex`), and a trivial smoke test
+so the builder fails fast instead of stalling in the middle of a multi-hour run.
+
+## Placeholder and fake-data guard
+
+Before shipping or marking a build complete, run the no-placeholder scan:
+
+```bash
+node ./bin/ralph-guard.mjs
+```
+
+```powershell
+node .\bin\ralph-guard.mjs
+```
+
+This rejects obvious fake-data markers such as `TODO`, `FIXME`, `TBD`,
+`jsonplaceholder`, `lorem ipsum`, `example.com`, and other placeholder-style
+content that should never make it into a real app or shipped documentation.
+
 ## Set up ralph
 
 `vibe-build` needs the ralph driver in each project it builds. It resolves it
@@ -94,30 +126,36 @@ Because the driver is bundled **inside the `vibe-build` skill**
 `vibe-build` build works out of the box with **no extra step** (resolution
 path #2).
 
-The optional `bin/ralph-setup.sh` script is purely an optimization: it
-installs the driver **machine-wide** to `~/.agents/ralph/` so future projects
+The optional `bin/ralph-setup.mjs` script is the cross-platform way to
+install the driver **machine-wide** to `~/.agents/ralph/` so future projects
 reuse path #1 instead of re-bundling the driver into every project's
-`scripts/ralph/`. Run it **once**:
+`scripts/ralph/`. The legacy `bin/ralph-setup.sh` remains as a POSIX-only
+compatibility helper. Run the cross-platform setup **once**:
 
 ```bash
-# clone once (anywhere), then install ralph machine-wide
-git clone https://github.com/aivisiontechai-crypto/vibe-builder.git
-cd vibe-builder
-./bin/ralph-setup.sh            # -> ~/.agents/ralph/scripts/ralph/
+# macOS / Linux
+node ./bin/ralph-setup.mjs
 # or to a custom location
-./bin/ralph-setup.sh /custom/path
+node ./bin/ralph-setup.mjs --target /custom/path
+```
+
+```powershell
+# Windows PowerShell
+node .\bin\ralph-setup.mjs
+# or to a custom location
+node .\bin\ralph-setup.mjs --target C:\path\to\ralph
 ```
 
 This copies the driver to `~/.agents/ralph/scripts/ralph/` and makes the
-scripts executable. After that, every project you build will reuse this —
-resolution path #1. Verify with:
+scripts executable where supported. After that, every project you build will
+reuse this — resolution path #1. Verify with:
 
 ```bash
 ls ~/.agents/ralph/scripts/ralph/
 ```
 
-> If you skip `bin/ralph-setup.sh`, `vibe-build` simply uses the bundled
-> copy inside the skill (path #2) and falls back to cloning upstream
+> If you skip the setup step, `vibe-build` simply uses the bundled copy
+> inside the skill (path #2) and falls back to cloning upstream
 > `snarktank/ralph` (path #3) only when the bundled copy is somehow absent.
 > Both work; the setup script is the machine-wide convenience, not a
 > requirement.
@@ -147,7 +185,8 @@ Each skill contains:
 - `npx` — for skill installation
 - `docker` — for local Postgres and Strix pentest sandbox
 
-On Windows, use the Node runner from PowerShell; Git for Windows or WSL is
+The project is cross-platform by design: the Node runner and `bin/ralph-setup.mjs`
+are the default path on Windows, macOS, and Linux. Git for Windows or WSL is
 only required when using the legacy `.sh` compatibility scripts.
 
 See `skills/builder/SKILL.md` Prerequisites for the full list.
